@@ -778,6 +778,238 @@ body {
 .det-line { transition: opacity 0.35s ease; }
 
 /* ----------------------------------------------------------------
+   INTRO SCREEN - LOGGED IN BADGE
+   ---------------------------------------------------------------- */
+.logged-in-badge {
+  margin-top: 16px;
+  padding: 6px 16px;
+  border-radius: 20px;
+  background: rgba(245, 158, 11, 0.1);
+  border: 1px solid rgba(245, 158, 11, 0.3);
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--accent);
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+/* ----------------------------------------------------------------
+   AUTH SCREEN
+   ---------------------------------------------------------------- */
+.auth-screen {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 100vh;
+  padding: 24px;
+}
+
+.auth-card {
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: 20px;
+  padding: 36px 32px;
+  max-width: 420px;
+  width: 100%;
+  box-shadow: 0 16px 48px rgba(0, 0, 0, 0.5);
+  animation: scaleIn 0.3s ease;
+}
+
+.auth-header {
+  text-align: center;
+  margin-bottom: 8px;
+}
+
+.auth-subtitle {
+  font-size: 14px;
+  color: var(--muted);
+  text-align: center;
+  margin-bottom: 24px;
+  line-height: 1.5;
+}
+
+.auth-field {
+  margin-bottom: 16px;
+}
+
+.auth-label {
+  display: block;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--muted);
+  margin-bottom: 6px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.auth-input {
+  width: 100%;
+  padding: 12px 16px;
+  border: 2px solid var(--border);
+  border-radius: 10px;
+  background: var(--surface);
+  color: var(--text);
+  font-family: 'DM Sans', sans-serif;
+  font-size: 15px;
+  font-weight: 500;
+  outline: none;
+  transition: border-color 0.2s ease, box-shadow 0.2s ease;
+}
+
+.auth-input:focus {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px rgba(245, 158, 11, 0.15);
+}
+
+.auth-input::placeholder {
+  color: #555;
+}
+
+.auth-submit {
+  width: 100%;
+  margin-top: 8px;
+}
+
+.auth-switch {
+  text-align: center;
+  font-size: 14px;
+  color: var(--muted);
+  margin-top: 16px;
+}
+
+.auth-switch a {
+  color: var(--accent);
+  text-decoration: none;
+  font-weight: 700;
+  transition: opacity 0.15s ease;
+}
+
+.auth-switch a:hover {
+  opacity: 0.8;
+  text-decoration: underline;
+}
+
+.auth-divider {
+  display: flex;
+  align-items: center;
+  margin: 20px 0;
+  gap: 12px;
+}
+
+.auth-divider::before,
+.auth-divider::after {
+  content: '';
+  flex: 1;
+  height: 1px;
+  background: var(--border);
+}
+
+.auth-divider span {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--muted);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.auth-guest {
+  width: 100%;
+  padding: 12px 20px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--muted);
+  justify-content: center;
+  transition: all 0.2s ease;
+}
+
+.auth-guest:hover {
+  border-color: var(--muted);
+  color: var(--text);
+  background: rgba(255, 255, 255, 0.03);
+}
+
+.auth-back {
+  width: 100%;
+  margin-top: 12px;
+  justify-content: center;
+  font-size: 13px;
+}
+
+/* ----------------------------------------------------------------
+   HEADER ICON BUTTON & USER MENU
+   ---------------------------------------------------------------- */
+.header-icon-btn {
+  width: 36px;
+  height: 36px;
+  border-radius: 8px;
+  border: 1px solid var(--border);
+  background: transparent;
+  color: var(--muted);
+  font-size: 14px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.15s ease;
+}
+
+.header-icon-btn:hover {
+  background: rgba(255, 255, 255, 0.05);
+  color: var(--text);
+  border-color: var(--muted);
+}
+
+.header-user-menu {
+  position: relative;
+}
+
+.user-dropdown {
+  position: absolute;
+  top: 44px;
+  right: 0;
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 8px 0;
+  min-width: 180px;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4);
+  z-index: 100;
+  animation: scaleIn 0.2s ease;
+}
+
+.user-dropdown-name {
+  padding: 8px 16px 10px;
+  font-weight: 700;
+  font-size: 14px;
+  color: var(--accent);
+  border-bottom: 1px solid var(--border);
+  margin-bottom: 4px;
+}
+
+.user-dropdown-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  padding: 10px 16px;
+  border: none;
+  background: transparent;
+  color: var(--accent2);
+  font-family: 'DM Sans', sans-serif;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.15s ease;
+}
+
+.user-dropdown-item:hover {
+  background: rgba(239, 68, 68, 0.1);
+}
+
+/* ----------------------------------------------------------------
    BATTLE SCORE BAR (Level 7)
    ---------------------------------------------------------------- */
 .battle-score {
