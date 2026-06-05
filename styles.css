@@ -820,7 +820,9 @@ body {
   text-align: center;
   margin-bottom: 8px;
 }
-
+#authTitle {
+  text-align: center;
+}
 .auth-subtitle {
   font-size: 14px;
   color: var(--muted);
