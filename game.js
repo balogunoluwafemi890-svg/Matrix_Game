@@ -208,6 +208,7 @@ function updateHeader() {
     dotsContainer.appendChild(dot);
   }
   saveState();
+  saveScoreToLeaderboard();
 }
 
 function completeLevel() {
@@ -1449,7 +1450,135 @@ document.addEventListener('keydown', function (e) {
 buildIntroBoard();
 updateLoginUI();
 
-// Load saved state on startup — if logged in and progress exists, resume
+/* ----------------------------------------------------------------
+   FIREBASE LEADERBOARD SYSTEM
+   ---------------------------------------------------------------- */
+
+// Firebase configuration — replace with YOUR Firebase project config
+var firebaseConfig = {
+  apiKey: "YOUR_API_KEY",
+  authDomain: "YOUR_PROJECT.firebaseapp.com",
+  projectId: "YOUR_PROJECT_ID",
+  storageBucket: "YOUR_PROJECT.appspot.com",
+  messagingSenderId: "YOUR_SENDER_ID",
+  appId: "YOUR_APP_ID"
+};
+
+// Initialize Firebase
+var db = null;
+var firebaseReady = false;
+try {
+  firebase.initializeApp(firebaseConfig);
+  db = firebase.firestore();
+  if (window.location.hostname === 'localhost') {
+    db.settings({ localTimestamps: true });
+  }
+  firebaseReady = true;
+} catch (e) {
+  console.warn('Firebase init failed — leaderboard disabled:', e);
+}
+
+/** Save or update the current user's score on Firebase. */
+function saveScoreToLeaderboard() {
+  if (!firebaseReady || !db) return;
+  var user = getCurrentUser();
+  if (!user) return; // guests are not ranked
+  var completedCount = Object.keys(S.completed).length;
+  var docRef = db.collection('leaderboard').doc(user);
+  docRef.set({
+    username: user,
+    score: S.score,
+    levelsCompleted: completedCount,
+    updatedAt: firebase.firestore.FieldValue.serverTimestamp()
+  }).catch(function (err) {
+    console.warn('Leaderboard save failed:', err);
+  });
+}
+
+/** Fetch top 20 players from Firestore and render the leaderboard. */
+function loadAndRenderLeaderboard() {
+  if (!firebaseReady || !db) {
+    document.getElementById('leaderboardLoading').style.display = 'none';
+    document.getElementById('leaderboardEmpty').style.display = 'block';
+    document.getElementById('leaderboardEmpty').querySelector('p').textContent = 'Leaderboard unavailable (Firebase not configured).';
+    return;
+  }
+  document.getElementById('leaderboardLoading').style.display = 'block';
+  document.getElementById('leaderboardEmpty').style.display = 'none';
+  document.getElementById('leaderboardTable').style.display = 'none';
+
+  db.collection('leaderboard')
+    .orderBy('score', 'desc')
+    .orderBy('updatedAt', 'asc')
+    .limit(20)
+    .get()
+    .then(function (querySnapshot) {
+      document.getElementById('leaderboardLoading').style.display = 'none';
+      if (querySnapshot.empty) {
+        document.getElementById('leaderboardEmpty').style.display = 'block';
+        return;
+      }
+      var currentUser = getCurrentUser();
+      var tbody = document.getElementById('leaderboardBody');
+      tbody.innerHTML = '';
+      var rank = 0;
+      querySnapshot.forEach(function (doc) {
+        rank++;
+        var data = doc.data();
+        var isYou = (data.username === currentUser);
+        var tr = document.createElement('tr');
+        if (isYou) tr.style.background = 'rgba(245, 158, 11, 0.06)';
+
+        var rankClass = 'lb-rank-cell';
+        if (rank === 1) rankClass += ' rank-1';
+        else if (rank === 2) rankClass += ' rank-2';
+        else if (rank === 3) rankClass += ' rank-3';
+
+        var rankSymbol = rank;
+        if (rank === 1) rankSymbol = '<i class="fa-solid fa-crown"></i>';
+        else if (rank === 2) rankSymbol = '2';
+        else if (rank === 3) rankSymbol = '3';
+
+        tr.innerHTML =
+          '<td class="' + rankClass + '">' + rankSymbol + '</td>' +
+          '<td class="lb-player-cell' + (isYou ? ' is-you' : '') + '">' + data.username + (isYou ? ' (you)' : '') + '</td>' +
+          '<td class="lb-score-cell">' + data.score + '</td>' +
+          '<td class="lb-levels-cell">' + data.levelsCompleted + '/7</td>';
+        tbody.appendChild(tr);
+      });
+      document.getElementById('leaderboardTable').style.display = 'table';
+    })
+    .catch(function (err) {
+      console.warn('Leaderboard fetch failed:', err);
+      document.getElementById('leaderboardLoading').style.display = 'none';
+      document.getElementById('leaderboardEmpty').style.display = 'block';
+      document.getElementById('leaderboardEmpty').querySelector('p').textContent = 'Could not load leaderboard. Check your connection.';
+    });
+}
+
+/** Show the leaderboard screen. */
+var _leaderboardPreviousScreen = 'introScreen';
+function showLeaderboardScreen() {
+  // Remember which screen was active before opening leaderboard
+  var screens = document.querySelectorAll('.screen');
+  for (var i = 0; i < screens.length; i++) {
+    if (screens[i].classList.contains('active') && screens[i].id !== 'leaderboardScreen') {
+      _leaderboardPreviousScreen = screens[i].id;
+      break;
+    }
+  }
+  showScreen('leaderboardScreen');
+  loadAndRenderLeaderboard();
+}
+
+// --- Leaderboard button handlers ---
+document.getElementById('introLeaderboardBtn').addEventListener('click', showLeaderboardScreen);
+document.getElementById('headerLeaderboardBtn').addEventListener('click', showLeaderboardScreen);
+document.getElementById('leaderboardBackBtn').addEventListener('click', function () {
+  showScreen(_leaderboardPreviousScreen);
+});
+
+// --- Load saved state on startup — if logged in and progress exists, resume ---
 var currentUser = getCurrentUser();
 if (currentUser && loadState()) {
   goToLevel(S.currentLevel);
