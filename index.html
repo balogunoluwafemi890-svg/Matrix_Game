@@ -27,118 +27,9 @@
           Master matrices step-by-step through an interactive checkerboard.
           Seven levels from coordinates to combat.
         </p>
-        <div class="intro-buttons">
-          <button id="startBtn" class="btn-primary btn-lg">
-            <i class="fa-solid fa-play mr-2"></i>Start Learning
-          </button>
-          <button id="introLeaderboardBtn" class="btn-ghost btn-lg" style="margin-top:12px">
-            <i class="fa-solid fa-trophy mr-2"></i>Leaderboard
-          </button>
-        </div>
-        <div id="loggedInAs" class="logged-in-badge" style="display:none">
-          <i class="fa-solid fa-user"></i> <span id="loggedInName"></span>
-        </div>
-      </div>
-    </div>
-
-    <!-- AUTH SCREEN -->
-    <div id="authScreen" class="screen">
-      <div class="auth-screen">
-        <div class="auth-card">
-          <div class="auth-header">
-            <span class="font-display text-2xl font-bold" style="color:var(--accent)">MC</span>
-          </div>
-          <h2 class="font-display text-3xl font-bold" id="authTitle">Sign Up</h2>
-          <p class="auth-subtitle" id="authSubtitle">Create an account to track your progress and compete on the leaderboard</p>
-
-          <div id="signupForm">
-            <div class="auth-field">
-              <label class="auth-label" for="signupUsername">Username</label>
-              <input type="text" id="signupUsername" class="auth-input" placeholder="Choose a username" maxlength="20" autocomplete="off">
-            </div>
-            <div class="auth-field">
-              <label class="auth-label" for="signupPassword">Password</label>
-              <input type="password" id="signupPassword" class="auth-input" placeholder="Create a password" maxlength="40">
-            </div>
-            <div class="auth-field">
-              <label class="auth-label" for="signupConfirm">Confirm Password</label>
-              <input type="password" id="signupConfirm" class="auth-input" placeholder="Confirm your password" maxlength="40">
-            </div>
-            <button id="signupBtn" class="btn-primary btn-lg auth-submit">
-              <i class="fa-solid fa-user-plus mr-2"></i>Create Account
-            </button>
-            <p class="auth-switch">Already have an account? <a href="#" id="showLogin">Log in</a></p>
-          </div>
-
-          <div id="loginForm" style="display:none">
-            <div class="auth-field">
-              <label class="auth-label" for="loginUsername">Username</label>
-              <input type="text" id="loginUsername" class="auth-input" placeholder="Enter your username" maxlength="20" autocomplete="off">
-            </div>
-            <div class="auth-field">
-              <label class="auth-label" for="loginPassword">Password</label>
-              <input type="password" id="loginPassword" class="auth-input" placeholder="Enter your password" maxlength="40">
-            </div>
-            <button id="loginBtn" class="btn-primary btn-lg auth-submit">
-              <i class="fa-solid fa-right-to-bracket mr-2"></i>Log In
-            </button>
-            <p class="auth-switch">Don't have an account? <a href="#" id="showSignup">Sign up</a></p>
-          </div>
-
-          <div class="auth-divider">
-            <span>or</span>
-          </div>
-          <button id="guestBtn" class="btn-ghost auth-guest">
-            <i class="fa-solid fa-user-secret mr-2"></i>Continue as Guest
-          </button>
-
-          <button id="authBackBtn" class="btn-ghost auth-back">
-            <i class="fa-solid fa-arrow-left mr-1"></i>Back
-          </button>
-        </div>
-      </div>
-    </div>
-
-    <!-- LEADERBOARD SCREEN -->
-    <div id="leaderboardScreen" class="screen">
-      <div class="leaderboard-screen">
-        <div class="leaderboard-card">
-          <div class="leaderboard-header">
-            <div class="leaderboard-title-row">
-              <button id="lbBackBtn" class="btn-ghost" style="padding:8px">
-                <i class="fa-solid fa-arrow-left"></i>
-              </button>
-              <h2 class="font-display text-3xl font-bold" style="color:var(--accent)">
-                <i class="fa-solid fa-trophy" style="margin-right:8px"></i>Leaderboard
-              </h2>
-              <div style="width:40px"></div>
-            </div>
-            <p class="leaderboard-subtitle">Top 20 players ranked by score</p>
-          </div>
-          <div class="leaderboard-table-wrap">
-            <table class="leaderboard-table" id="leaderboardTable">
-              <thead>
-                <tr>
-                  <th class="lb-rank">Rank</th>
-                  <th class="lb-player">Player</th>
-                  <th class="lb-score">Score</th>
-                  <th class="lb-levels">Levels</th>
-                </tr>
-              </thead>
-              <tbody id="leaderboardBody">
-              </tbody>
-            </table>
-          </div>
-          <div id="lbEmpty" class="lb-empty" style="display:none">
-            <i class="fa-solid fa-chart-simple" style="font-size:48px;color:var(--muted);margin-bottom:16px"></i>
-            <p style="color:var(--muted)">No scores yet. Be the first to play!</p>
-          </div>
-          <div class="leaderboard-footer">
-            <button id="lbPlayBtn" class="btn-primary btn-lg">
-              <i class="fa-solid fa-play mr-2"></i>Play Now
-            </button>
-          </div>
-        </div>
+        <button id="startBtn" class="btn-primary btn-lg">
+          <i class="fa-solid fa-play mr-2"></i>Start Learning
+        </button>
       </div>
     </div>
 
@@ -154,20 +45,312 @@
           <div class="header-center" id="progressDots"></div>
           <div class="header-right">
             <span class="text-sm font-bold" style="color:var(--accent)" id="scoreDisplay">0 pts</span>
-            <button id="gameLeaderboardBtn" class="header-icon-btn" title="Leaderboard">
-              <i class="fa-solid fa-trophy"></i>
-            </button>
-            <div class="header-user-menu" id="headerUserMenu">
-              <button class="header-icon-btn" id="userMenuBtn" title="User menu">
-                <i class="fa-solid fa-user"></i>
-              </button>
-              <div class="user-dropdown" id="userDropdown" style="display:none">
-                <div class="user-dropdown-name" id="dropdownUsername">Guest</div>
-                <button class="user-dropdown-item" id="logoutBtn">
-                  <i class="fa-solid fa-right-from-bracket"></i> Log Out
-                </button>
+          </div>
+        </header>
+
+        <main class="game-main">
+          <aside class="side-panel" id="leftPanel">
+            <div class="panel-card">
+              <div class="panel-header">
+                <div class="level-badge" id="levelBadge">1</div>
+                <h2 class="font-display text-xl font-bold" id="levelTitle">Title</h2>
               </div>
+              <p class="panel-desc" id="levelDesc">Description</p>
+              <div class="task-box" id="taskBox">
+                <div class="task-header">
+                  <div class="task-label">Task</div>
+                  <button id="hintBtn" class="hint-btn" style="display:none">
+                    <i class="fa-solid fa-lightbulb"></i> Hint
+                  </button>
+                </div>
+                <div id="taskText">...</div>
+                <div id="hintText" class="hint-text" style="display:none"></div>
+              </div>
+              <div class="panel-stats" id="statsText">Progress: 0/5</div>
             </div>
+            <div class="learn-box" id="learnBox" style="display:none">
+              <div class="learn-label">
+                <i class="fa-solid fa-lightbulb mr-1"></i>How it works
+              </div>
+              <div id="learnContent"></div>
+            </div>
+          </aside>
+          <div class="board-area" id="boardArea"></div>
+        </main>
+
+        <footer class="game-footer">
+          <button id="prevBtn" class="btn-ghost" disabled>
+            <i class="fa-solid fa-arrow-left mr-1"></i>Previous
+          </button>
+          <button id="resetBtn" class="btn-ghost">
+            <i class="fa-solid fa-rotate-right mr-1"></i>Reset
+          </button>
+          <button id="clearProgressBtn" class="btn-ghost" title="Erase all saved progress" style="color:var(--accent2);opacity:0.5;font-size:12px">
+            <i class="fa-solid fa-trash-can mr-1"></i>Clear All
+          </button>
+          <button id="nextBtn" class="btn-primary" disabled>
+            Next<i class="fa-solid fa-arrow-right ml-1"></i>
+          </button>
+        </footer>
+
+      </div>
+    </div>
+
+  </div>
+
+  <script src="game.js"></script>
+</body>
+</html><!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Matrix Checkers</title>
+  <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@700;900&family=DM+Sans:ital,wght@0,300;0,400;0,500;0,700;1,400&display=swap" rel="stylesheet">
+  <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css" rel="stylesheet">
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+
+  <div class="bg-grid"></div>
+  <div class="glow-orb orb1"></div>
+  <div class="glow-orb orb2"></div>
+  <div class="toast-container" id="toasts"></div>
+  <div class="confetti-container" id="confetti"></div>
+
+  <div id="app">
+
+    <!-- INTRO SCREEN -->
+    <div id="introScreen" class="screen active">
+      <div class="intro-screen">
+        <div class="intro-board" id="introBoard"></div>
+        <h1 class="font-display text-5xl md:text-7xl font-black tracking-tight mb-4">Matrix Checkers</h1>
+        <p class="text-lg md:text-xl mb-8" style="color:var(--muted);max-width:440px">
+          Master matrices step-by-step through an interactive checkerboard.
+          Seven levels from coordinates to combat.
+        </p>
+        <button id="startBtn" class="btn-primary btn-lg">
+          <i class="fa-solid fa-play mr-2"></i>Start Learning
+        </button>
+      </div>
+    </div>
+
+    <!-- GAME SCREEN -->
+    <div id="gameScreen" class="screen">
+      <div class="game-layout">
+
+        <header class="game-header">
+          <div class="header-left">
+            <span class="font-display text-xl font-bold" style="color:var(--accent)">MC</span>
+            <span class="text-sm font-medium" style="color:var(--muted)" id="levelLabel">Level 1 of 7</span>
+          </div>
+          <div class="header-center" id="progressDots"></div>
+          <div class="header-right">
+            <span class="text-sm font-bold" style="color:var(--accent)" id="scoreDisplay">0 pts</span>
+          </div>
+        </header>
+
+        <main class="game-main">
+          <aside class="side-panel" id="leftPanel">
+            <div class="panel-card">
+              <div class="panel-header">
+                <div class="level-badge" id="levelBadge">1</div>
+                <h2 class="font-display text-xl font-bold" id="levelTitle">Title</h2>
+              </div>
+              <p class="panel-desc" id="levelDesc">Description</p>
+              <div class="task-box" id="taskBox">
+                <div class="task-header">
+                  <div class="task-label">Task</div>
+                  <button id="hintBtn" class="hint-btn" style="display:none">
+                    <i class="fa-solid fa-lightbulb"></i> Hint
+                  </button>
+                </div>
+                <div id="taskText">...</div>
+                <div id="hintText" class="hint-text" style="display:none"></div>
+              </div>
+              <div class="panel-stats" id="statsText">Progress: 0/5</div>
+            </div>
+            <div class="learn-box" id="learnBox" style="display:none">
+              <div class="learn-label">
+                <i class="fa-solid fa-lightbulb mr-1"></i>How it works
+              </div>
+              <div id="learnContent"></div>
+            </div>
+          </aside>
+          <div class="board-area" id="boardArea"></div>
+        </main>
+
+        <footer class="game-footer">
+          <button id="prevBtn" class="btn-ghost" disabled>
+            <i class="fa-solid fa-arrow-left mr-1"></i>Previous
+          </button>
+          <button id="resetBtn" class="btn-ghost">
+            <i class="fa-solid fa-rotate-right mr-1"></i>Reset
+          </button>
+          <button id="clearProgressBtn" class="btn-ghost" title="Erase all saved progress" style="color:var(--accent2);opacity:0.5;font-size:12px">
+            <i class="fa-solid fa-trash-can mr-1"></i>Clear All
+          </button>
+          <button id="nextBtn" class="btn-primary" disabled>
+            Next<i class="fa-solid fa-arrow-right ml-1"></i>
+          </button>
+        </footer>
+
+      </div>
+    </div>
+
+  </div>
+
+  <script src="game.js"></script>
+</body>
+</html><!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Matrix Checkers</title>
+  <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@700;900&family=DM+Sans:ital,wght@0,300;0,400;0,500;0,700;1,400&display=swap" rel="stylesheet">
+  <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css" rel="stylesheet">
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+
+  <div class="bg-grid"></div>
+  <div class="glow-orb orb1"></div>
+  <div class="glow-orb orb2"></div>
+  <div class="toast-container" id="toasts"></div>
+  <div class="confetti-container" id="confetti"></div>
+
+  <div id="app">
+
+    <!-- INTRO SCREEN -->
+    <div id="introScreen" class="screen active">
+      <div class="intro-screen">
+        <div class="intro-board" id="introBoard"></div>
+        <h1 class="font-display text-5xl md:text-7xl font-black tracking-tight mb-4">Matrix Checkers</h1>
+        <p class="text-lg md:text-xl mb-8" style="color:var(--muted);max-width:440px">
+          Master matrices step-by-step through an interactive checkerboard.
+          Seven levels from coordinates to combat.
+        </p>
+        <button id="startBtn" class="btn-primary btn-lg">
+          <i class="fa-solid fa-play mr-2"></i>Start Learning
+        </button>
+      </div>
+    </div>
+
+    <!-- GAME SCREEN -->
+    <div id="gameScreen" class="screen">
+      <div class="game-layout">
+
+        <header class="game-header">
+          <div class="header-left">
+            <span class="font-display text-xl font-bold" style="color:var(--accent)">MC</span>
+            <span class="text-sm font-medium" style="color:var(--muted)" id="levelLabel">Level 1 of 7</span>
+          </div>
+          <div class="header-center" id="progressDots"></div>
+          <div class="header-right">
+            <span class="text-sm font-bold" style="color:var(--accent)" id="scoreDisplay">0 pts</span>
+          </div>
+        </header>
+
+        <main class="game-main">
+          <aside class="side-panel" id="leftPanel">
+            <div class="panel-card">
+              <div class="panel-header">
+                <div class="level-badge" id="levelBadge">1</div>
+                <h2 class="font-display text-xl font-bold" id="levelTitle">Title</h2>
+              </div>
+              <p class="panel-desc" id="levelDesc">Description</p>
+              <div class="task-box" id="taskBox">
+                <div class="task-header">
+                  <div class="task-label">Task</div>
+                  <button id="hintBtn" class="hint-btn" style="display:none">
+                    <i class="fa-solid fa-lightbulb"></i> Hint
+                  </button>
+                </div>
+                <div id="taskText">...</div>
+                <div id="hintText" class="hint-text" style="display:none"></div>
+              </div>
+              <div class="panel-stats" id="statsText">Progress: 0/5</div>
+            </div>
+            <div class="learn-box" id="learnBox" style="display:none">
+              <div class="learn-label">
+                <i class="fa-solid fa-lightbulb mr-1"></i>How it works
+              </div>
+              <div id="learnContent"></div>
+            </div>
+          </aside>
+          <div class="board-area" id="boardArea"></div>
+        </main>
+
+        <footer class="game-footer">
+          <button id="prevBtn" class="btn-ghost" disabled>
+            <i class="fa-solid fa-arrow-left mr-1"></i>Previous
+          </button>
+          <button id="resetBtn" class="btn-ghost">
+            <i class="fa-solid fa-rotate-right mr-1"></i>Reset
+          </button>
+          <button id="clearProgressBtn" class="btn-ghost" title="Erase all saved progress" style="color:var(--accent2);opacity:0.5;font-size:12px">
+            <i class="fa-solid fa-trash-can mr-1"></i>Clear All
+          </button>
+          <button id="nextBtn" class="btn-primary" disabled>
+            Next<i class="fa-solid fa-arrow-right ml-1"></i>
+          </button>
+        </footer>
+
+      </div>
+    </div>
+
+  </div>
+
+  <script src="game.js"></script>
+</body>
+</html><!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Matrix Checkers</title>
+  <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@700;900&family=DM+Sans:ital,wght@0,300;0,400;0,500;0,700;1,400&display=swap" rel="stylesheet">
+  <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css" rel="stylesheet">
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+
+  <div class="bg-grid"></div>
+  <div class="glow-orb orb1"></div>
+  <div class="glow-orb orb2"></div>
+  <div class="toast-container" id="toasts"></div>
+  <div class="confetti-container" id="confetti"></div>
+
+  <div id="app">
+
+    <!-- INTRO SCREEN -->
+    <div id="introScreen" class="screen active">
+      <div class="intro-screen">
+        <div class="intro-board" id="introBoard"></div>
+        <h1 class="font-display text-5xl md:text-7xl font-black tracking-tight mb-4">Matrix Checkers</h1>
+        <p class="text-lg md:text-xl mb-8" style="color:var(--muted);max-width:440px">
+          Master matrices step-by-step through an interactive checkerboard.
+          Seven levels from coordinates to combat.
+        </p>
+        <button id="startBtn" class="btn-primary btn-lg">
+          <i class="fa-solid fa-play mr-2"></i>Start Learning
+        </button>
+      </div>
+    </div>
+
+    <!-- GAME SCREEN -->
+    <div id="gameScreen" class="screen">
+      <div class="game-layout">
+
+        <header class="game-header">
+          <div class="header-left">
+            <span class="font-display text-xl font-bold" style="color:var(--accent)">MC</span>
+            <span class="text-sm font-medium" style="color:var(--muted)" id="levelLabel">Level 1 of 7</span>
+          </div>
+          <div class="header-center" id="progressDots"></div>
+          <div class="header-right">
+            <span class="text-sm font-bold" style="color:var(--accent)" id="scoreDisplay">0 pts</span>
           </div>
         </header>
 
