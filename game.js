@@ -138,7 +138,9 @@ function showFloatText(targetEl, text, color) {
    ---------------------------------------------------------------- */
 
 var SAVE_KEY = 'matrix_checkers_save';
-var SAVE_VERSION = 1;
+var SAVE_VERSION = 2;
+var USERS_KEY = 'matrix_checkers_users';
+var SESSION_KEY = 'matrix_checkers_session';
 
 /** Persist current progress to localStorage. */
 function saveState() {
@@ -1157,6 +1159,184 @@ function aiL7Move() {
 
 
 /* ================================================================
+   AUTH SYSTEM
+   ================================================================ */
+
+/** Get all registered users from localStorage. */
+function getUsers() {
+  try {
+    var raw = localStorage.getItem(USERS_KEY);
+    return raw ? JSON.parse(raw) : {};
+  } catch (e) { return {}; }
+}
+
+/** Save users object to localStorage. */
+function saveUsers(users) {
+  try { localStorage.setItem(USERS_KEY, JSON.stringify(users)); } catch (e) {}
+}
+
+/** Get current logged-in user from session. */
+function getCurrentUser() {
+  try {
+    var raw = localStorage.getItem(SESSION_KEY);
+    if (!raw) return null;
+    var session = JSON.parse(raw);
+    return session || null;
+  } catch (e) { return null; }
+}
+
+/** Set current logged-in user session. */
+function setCurrentUser(username, isGuest) {
+  var session = { username: username, isGuest: !!isGuest };
+  try { localStorage.setItem(SESSION_KEY, JSON.stringify(session)); } catch (e) {}
+}
+
+/** Clear current session (logout). */
+function clearSession() {
+  try { localStorage.removeItem(SESSION_KEY); } catch (e) {}
+}
+
+/** Simple hash for password (not cryptographically secure, but better than plaintext). */
+function simpleHash(str) {
+  var hash = 0;
+  for (var i = 0; i < str.length; i++) {
+    var char = str.charCodeAt(i);
+    hash = ((hash << 5) - hash) + char;
+    hash = hash & hash;
+  }
+  return 'h' + Math.abs(hash).toString(36);
+}
+
+/** Handle signup. */
+function handleSignup() {
+  var username = document.getElementById('signupUsername').value.trim();
+  var password = document.getElementById('signupPassword').value;
+  var confirm = document.getElementById('signupConfirm').value;
+
+  if (!username || username.length < 3) {
+    showToast('Username must be at least 3 characters', 'error');
+    return;
+  }
+  if (!/^[a-zA-Z0-9_]+$/.test(username)) {
+    showToast('Username can only contain letters, numbers, and underscores', 'error');
+    return;
+  }
+  if (!password || password.length < 4) {
+    showToast('Password must be at least 4 characters', 'error');
+    return;
+  }
+  if (password !== confirm) {
+    showToast('Passwords do not match', 'error');
+    return;
+  }
+
+  var users = getUsers();
+  if (users[username.toLowerCase()]) {
+    showToast('Username already taken', 'error');
+    return;
+  }
+
+  users[username.toLowerCase()] = {
+    username: username,
+    passwordHash: simpleHash(password),
+    createdAt: Date.now()
+  };
+  saveUsers(users);
+  setCurrentUser(username, false);
+
+  showToast('Account created! Welcome, ' + username, 'success');
+  updateLoginUI();
+  goToLevel(0);
+}
+
+/** Handle login. */
+function handleLogin() {
+  var username = document.getElementById('loginUsername').value.trim();
+  var password = document.getElementById('loginPassword').value;
+
+  if (!username || !password) {
+    showToast('Please enter username and password', 'error');
+    return;
+  }
+
+  var users = getUsers();
+  var userData = users[username.toLowerCase()];
+  if (!userData || userData.passwordHash !== simpleHash(password)) {
+    showToast('Invalid username or password', 'error');
+    return;
+  }
+
+  setCurrentUser(userData.username, false);
+  showToast('Welcome back, ' + userData.username + '!', 'success');
+  updateLoginUI();
+
+  // Load user's saved progress
+  loadState();
+  goToLevel(S.currentLevel);
+}
+
+/** Handle guest access. */
+function handleGuest() {
+  var guestName = 'Guest_' + Math.floor(Math.random() * 10000);
+  setCurrentUser(guestName, true);
+  showToast('Playing as guest', 'info');
+  updateLoginUI();
+  goToLevel(0);
+}
+
+/** Log out current user. */
+function handleLogout() {
+  clearSession();
+  clearSave();
+  S.currentLevel = 0;
+  S.score = 0;
+  S.completed = {};
+  S.levelData = {};
+  updateLoginUI();
+  showScreen('introScreen');
+  showToast('Logged out successfully', 'info');
+  document.getElementById('userDropdown').style.display = 'none';
+}
+
+/** Update UI elements based on login state. */
+function updateLoginUI() {
+  var user = getCurrentUser();
+  var loggedInBadge = document.getElementById('loggedInAs');
+  var loggedInName = document.getElementById('loggedInName');
+  var dropdownUsername = document.getElementById('dropdownUsername');
+
+  if (user) {
+    loggedInBadge.style.display = 'inline-flex';
+    loggedInName.textContent = user.isGuest ? 'Guest' : user.username;
+    dropdownUsername.textContent = user.isGuest ? 'Guest' : user.username;
+  } else {
+    loggedInBadge.style.display = 'none';
+    dropdownUsername.textContent = 'Guest';
+  }
+}
+
+/** Show auth screen with signup form. */
+function showAuthSignup() {
+  document.getElementById('signupForm').style.display = 'block';
+  document.getElementById('loginForm').style.display = 'none';
+  document.getElementById('authTitle').textContent = 'Sign Up';
+  document.getElementById('authSubtitle').textContent = 'Create an account to track your progress';
+  showScreen('authScreen');
+  document.getElementById('signupUsername').focus();
+}
+
+/** Show auth screen with login form. */
+function showAuthLogin() {
+  document.getElementById('signupForm').style.display = 'none';
+  document.getElementById('loginForm').style.display = 'block';
+  document.getElementById('authTitle').textContent = 'Log In';
+  document.getElementById('authSubtitle').textContent = 'Welcome back! Log in to continue your progress';
+  showScreen('authScreen');
+  document.getElementById('loginUsername').focus();
+}
+
+
+/* ================================================================
    INTRO SCREEN SETUP
    ================================================================ */
 
@@ -1183,7 +1363,48 @@ function buildIntroBoard() {
    EVENT LISTENERS & STARTUP
    ================================================================ */
 
-document.getElementById('startBtn').addEventListener('click', function () { goToLevel(0); });
+// --- Start button: show auth screen if not logged in, else go to game ---
+document.getElementById('startBtn').addEventListener('click', function () {
+  var user = getCurrentUser();
+  if (user) {
+    // Already logged in, go straight to game
+    loadState();
+    goToLevel(S.currentLevel);
+  } else {
+    // Show auth screen
+    showAuthSignup();
+  }
+});
+
+// --- Auth screen: toggle signup/login forms ---
+document.getElementById('showLogin').addEventListener('click', function (e) {
+  e.preventDefault();
+  showAuthLogin();
+});
+
+document.getElementById('showSignup').addEventListener('click', function (e) {
+  e.preventDefault();
+  showAuthSignup();
+});
+
+// --- Auth form submissions ---
+document.getElementById('signupBtn').addEventListener('click', handleSignup);
+document.getElementById('loginBtn').addEventListener('click', handleLogin);
+document.getElementById('guestBtn').addEventListener('click', handleGuest);
+document.getElementById('authBackBtn').addEventListener('click', function () {
+  showScreen('introScreen');
+});
+
+// Enter key in signup form
+document.getElementById('signupUsername').addEventListener('keydown', function (e) { if (e.key === 'Enter') document.getElementById('signupPassword').focus(); });
+document.getElementById('signupPassword').addEventListener('keydown', function (e) { if (e.key === 'Enter') document.getElementById('signupConfirm').focus(); });
+document.getElementById('signupConfirm').addEventListener('keydown', function (e) { if (e.key === 'Enter') handleSignup(); });
+
+// Enter key in login form
+document.getElementById('loginUsername').addEventListener('keydown', function (e) { if (e.key === 'Enter') document.getElementById('loginPassword').focus(); });
+document.getElementById('loginPassword').addEventListener('keydown', function (e) { if (e.key === 'Enter') handleLogin(); });
+
+// --- Game navigation buttons ---
 document.getElementById('prevBtn').addEventListener('click', function () { goToLevel(S.currentLevel - 1); });
 document.getElementById('nextBtn').addEventListener('click', function () { goToLevel(S.currentLevel + 1); });
 document.getElementById('resetBtn').addEventListener('click', function () { goToLevel(S.currentLevel); });
@@ -1193,17 +1414,43 @@ document.getElementById('clearProgressBtn').addEventListener('click', function (
   showScreen('introScreen');
 });
 
+// --- User menu dropdown ---
+document.getElementById('userMenuBtn').addEventListener('click', function (e) {
+  e.stopPropagation();
+  var dropdown = document.getElementById('userDropdown');
+  dropdown.style.display = dropdown.style.display === 'none' ? 'block' : 'none';
+});
+
+document.getElementById('logoutBtn').addEventListener('click', handleLogout);
+
+// Close dropdown when clicking outside
+document.addEventListener('click', function (e) {
+  var dropdown = document.getElementById('userDropdown');
+  var menu = document.getElementById('headerUserMenu');
+  if (dropdown && menu && !menu.contains(e.target)) {
+    dropdown.style.display = 'none';
+  }
+});
+
+// --- Keyboard shortcuts ---
 document.addEventListener('keydown', function (e) {
   var introActive = document.getElementById('introScreen').classList.contains('active');
-  if (introActive) { if (e.key === 'Enter') goToLevel(0); return; }
+  var authActive = document.getElementById('authScreen').classList.contains('active');
+
+  if (introActive) { if (e.key === 'Enter') { var user = getCurrentUser(); if (user) { loadState(); goToLevel(S.currentLevel); } else showAuthSignup(); } return; }
+  if (authActive) return;
+
   if (e.key === 'ArrowRight' && S.completed[S.currentLevel]) goToLevel(S.currentLevel + 1);
   if (e.key === 'ArrowLeft') goToLevel(S.currentLevel - 1);
   if (e.key === 'r' || e.key === 'R') goToLevel(S.currentLevel);
 });
 
+// --- Startup ---
 buildIntroBoard();
+updateLoginUI();
 
-// Load saved state on startup — skip intro if progress exists
-if (loadState()) {
+// Load saved state on startup — if logged in and progress exists, resume
+var currentUser = getCurrentUser();
+if (currentUser && loadState()) {
   goToLevel(S.currentLevel);
 }
