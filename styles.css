@@ -820,9 +820,11 @@ body {
   text-align: center;
   margin-bottom: 8px;
 }
+
 #authTitle {
   text-align: center;
 }
+
 .auth-subtitle {
   font-size: 14px;
   color: var(--muted);
@@ -962,6 +964,134 @@ body {
   background: rgba(255, 255, 255, 0.05);
   color: var(--text);
   border-color: var(--muted);
+}
+
+.header-icon-btn.trophy-active {
+  color: var(--accent);
+  border-color: var(--accent);
+  background: rgba(245, 158, 11, 0.08);
+}
+
+/* ----------------------------------------------------------------
+   LEADERBOARD SCREEN
+   ---------------------------------------------------------------- */
+.leaderboard-screen {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 100vh;
+  padding: 24px;
+}
+
+.leaderboard-card {
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: 20px;
+  padding: 32px 28px;
+  max-width: 520px;
+  width: 100%;
+  box-shadow: 0 16px 48px rgba(0, 0, 0, 0.5);
+  animation: scaleIn 0.3s ease;
+}
+
+.leaderboard-header {
+  text-align: center;
+  margin-bottom: 20px;
+}
+
+.leaderboard-header i {
+  margin-bottom: 8px;
+}
+
+.leaderboard-subtitle {
+  font-size: 13px;
+  color: var(--muted);
+  margin-top: 4px;
+}
+
+.leaderboard-loading {
+  text-align: center;
+  padding: 40px 0;
+  color: var(--muted);
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.leaderboard-empty {
+  text-align: center;
+  padding: 40px 0;
+  color: var(--muted);
+  font-size: 14px;
+}
+
+.leaderboard-table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.leaderboard-table thead th {
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--muted);
+  padding: 8px 6px;
+  border-bottom: 1px solid var(--border);
+  text-align: left;
+}
+
+.lb-rank { width: 36px; text-align: center !important; }
+.lb-score { text-align: right !important; }
+.lb-levels { text-align: right !important; width: 60px; }
+
+.leaderboard-table tbody tr {
+  border-bottom: 1px solid rgba(255, 255, 255, 0.04);
+  transition: background 0.15s ease;
+}
+
+.leaderboard-table tbody tr:hover {
+  background: rgba(245, 158, 11, 0.04);
+}
+
+.leaderboard-table tbody td {
+  padding: 10px 6px;
+  font-size: 14px;
+}
+
+.lb-rank-cell {
+  text-align: center;
+  font-weight: 800;
+  color: var(--muted);
+}
+
+.lb-rank-cell.rank-1 { color: #fbbf24; font-size: 16px; }
+.lb-rank-cell.rank-2 { color: #94a3b8; font-size: 15px; }
+.lb-rank-cell.rank-3 { color: #d97706; font-size: 15px; }
+
+.lb-player-cell {
+  font-weight: 600;
+  color: var(--text);
+  max-width: 160px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.lb-player-cell.is-you {
+  color: var(--accent);
+}
+
+.lb-score-cell {
+  text-align: right;
+  font-weight: 800;
+  color: var(--accent);
+}
+
+.lb-levels-cell {
+  text-align: right;
+  font-size: 12px;
+  color: var(--muted);
+  font-weight: 600;
 }
 
 .header-user-menu {
