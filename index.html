@@ -30,6 +30,67 @@
         <button id="startBtn" class="btn-primary btn-lg">
           <i class="fa-solid fa-play mr-2"></i>Start Learning
         </button>
+        <div id="loggedInAs" class="logged-in-badge" style="display:none">
+          <i class="fa-solid fa-user"></i> <span id="loggedInName"></span>
+        </div>
+      </div>
+    </div>
+
+    <!-- AUTH SCREEN -->
+    <div id="authScreen" class="screen">
+      <div class="auth-screen">
+        <div class="auth-card">
+          <div class="auth-header">
+            <span class="font-display text-2xl font-bold" style="color:var(--accent)">MC</span>
+          </div>
+          <h2 class="font-display text-3xl font-bold" id="authTitle">Sign Up</h2>
+          <p class="auth-subtitle" id="authSubtitle">Create an account to track your progress</p>
+
+          <div id="signupForm">
+            <div class="auth-field">
+              <label class="auth-label" for="signupUsername">Username</label>
+              <input type="text" id="signupUsername" class="auth-input" placeholder="Choose a username" maxlength="20" autocomplete="off">
+            </div>
+            <div class="auth-field">
+              <label class="auth-label" for="signupPassword">Password</label>
+              <input type="password" id="signupPassword" class="auth-input" placeholder="Create a password" maxlength="40">
+            </div>
+            <div class="auth-field">
+              <label class="auth-label" for="signupConfirm">Confirm Password</label>
+              <input type="password" id="signupConfirm" class="auth-input" placeholder="Confirm your password" maxlength="40">
+            </div>
+            <button id="signupBtn" class="btn-primary btn-lg auth-submit">
+              <i class="fa-solid fa-user-plus mr-2"></i>Create Account
+            </button>
+            <p class="auth-switch">Already have an account? <a href="#" id="showLogin">Log in</a></p>
+          </div>
+
+          <div id="loginForm" style="display:none">
+            <div class="auth-field">
+              <label class="auth-label" for="loginUsername">Username</label>
+              <input type="text" id="loginUsername" class="auth-input" placeholder="Enter your username" maxlength="20" autocomplete="off">
+            </div>
+            <div class="auth-field">
+              <label class="auth-label" for="loginPassword">Password</label>
+              <input type="password" id="loginPassword" class="auth-input" placeholder="Enter your password" maxlength="40">
+            </div>
+            <button id="loginBtn" class="btn-primary btn-lg auth-submit">
+              <i class="fa-solid fa-right-to-bracket mr-2"></i>Log In
+            </button>
+            <p class="auth-switch">Don't have an account? <a href="#" id="showSignup">Sign up</a></p>
+          </div>
+
+          <div class="auth-divider">
+            <span>or</span>
+          </div>
+          <button id="guestBtn" class="btn-ghost auth-guest">
+            <i class="fa-solid fa-user-secret mr-2"></i>Continue as Guest
+          </button>
+
+          <button id="authBackBtn" class="btn-ghost auth-back">
+            <i class="fa-solid fa-arrow-left mr-1"></i>Back
+          </button>
+        </div>
       </div>
     </div>
 
@@ -45,6 +106,17 @@
           <div class="header-center" id="progressDots"></div>
           <div class="header-right">
             <span class="text-sm font-bold" style="color:var(--accent)" id="scoreDisplay">0 pts</span>
+            <div class="header-user-menu" id="headerUserMenu">
+              <button class="header-icon-btn" id="userMenuBtn" title="User menu">
+                <i class="fa-solid fa-user"></i>
+              </button>
+              <div class="user-dropdown" id="userDropdown" style="display:none">
+                <div class="user-dropdown-name" id="dropdownUsername">Guest</div>
+                <button class="user-dropdown-item" id="logoutBtn">
+                  <i class="fa-solid fa-right-from-bracket"></i> Log Out
+                </button>
+              </div>
+            </div>
           </div>
         </header>
 
