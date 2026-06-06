@@ -140,12 +140,15 @@ function showFloatText(targetEl, text, color) {
 var SAVE_KEY = 'matrix_checkers_save';
 var SAVE_VERSION = 2;
 var USERS_KEY = 'matrix_checkers_users';
+var LEADERBOARD_KEY = 'matrix_checkers_leaderboard';
 var SESSION_KEY = 'matrix_checkers_session';
 
 /** Persist current progress to localStorage. */
 function saveState() {
   var data = { currentLevel: S.currentLevel, score: S.score, completed: S.completed, version: SAVE_VERSION };
   try { localStorage.setItem(SAVE_KEY, JSON.stringify(data)); } catch (e) { /* storage full or disabled */ }
+  // Also update leaderboard for current user
+  updateLeaderboardForCurrentUser();
 }
 
 /** Load saved progress. Returns true if a valid save was found. */
@@ -192,6 +195,291 @@ var ORDINALS = ['1st', '2nd', '3rd', '4th', '5th', '6th', '7th'];
 
 
 /* ----------------------------------------------------------------
+   SOUND SYSTEM — Web Audio API synthesized sounds
+   ---------------------------------------------------------------- */
+
+var SoundSystem = {
+  ctx: null,
+  muted: false,
+  bgMusicGain: null,
+  bgOscillators: [],
+  bgPlaying: false,
+
+  /** Initialize the AudioContext (must be called after user gesture). */
+  init: function () {
+    if (this.ctx) return;
+    try {
+      this.ctx = new (window.AudioContext || window.webkitAudioContext)();
+    } catch (e) { /* Web Audio not supported */ }
+  },
+
+  /** Resume AudioContext if suspended (needed after user interaction). */
+  resume: function () {
+    if (this.ctx && this.ctx.state === 'suspended') {
+      this.ctx.resume();
+    }
+  },
+
+  /** Play a short percussive tap sound for cell/click interactions. */
+  playTap: function () {
+    if (this.muted || !this.ctx) return;
+    this.resume();
+    var now = this.ctx.currentTime;
+    var osc = this.ctx.createOscillator();
+    var gain = this.ctx.createGain();
+    osc.type = 'sine';
+    osc.frequency.setValueAtTime(800, now);
+    osc.frequency.exponentialRampToValueAtTime(400, now + 0.08);
+    gain.gain.setValueAtTime(0.15, now);
+    gain.gain.exponentialRampToValueAtTime(0.001, now + 0.1);
+    osc.connect(gain);
+    gain.connect(this.ctx.destination);
+    osc.start(now);
+    osc.stop(now + 0.1);
+  },
+
+  /** Play a UI button click sound — crisp and short. */
+  playClick: function () {
+    if (this.muted || !this.ctx) return;
+    this.resume();
+    var now = this.ctx.currentTime;
+    var osc = this.ctx.createOscillator();
+    var gain = this.ctx.createGain();
+    osc.type = 'square';
+    osc.frequency.setValueAtTime(1200, now);
+    osc.frequency.exponentialRampToValueAtTime(600, now + 0.04);
+    gain.gain.setValueAtTime(0.08, now);
+    gain.gain.exponentialRampToValueAtTime(0.001, now + 0.05);
+    osc.connect(gain);
+    gain.connect(this.ctx.destination);
+    osc.start(now);
+    osc.stop(now + 0.05);
+  },
+
+  /** Play a correct answer sound — ascending two-tone chime. */
+  playCorrect: function () {
+    if (this.muted || !this.ctx) return;
+    this.resume();
+    var now = this.ctx.currentTime;
+    var self = this;
+
+    // First note
+    var osc1 = this.ctx.createOscillator();
+    var gain1 = this.ctx.createGain();
+    osc1.type = 'sine';
+    osc1.frequency.setValueAtTime(523, now); // C5
+    gain1.gain.setValueAtTime(0.18, now);
+    gain1.gain.exponentialRampToValueAtTime(0.001, now + 0.2);
+    osc1.connect(gain1);
+    gain1.connect(self.ctx.destination);
+    osc1.start(now);
+    osc1.stop(now + 0.2);
+
+    // Second note (higher)
+    var osc2 = this.ctx.createOscillator();
+    var gain2 = this.ctx.createGain();
+    osc2.type = 'sine';
+    osc2.frequency.setValueAtTime(659, now + 0.1); // E5
+    gain2.gain.setValueAtTime(0.001, now);
+    gain2.gain.setValueAtTime(0.2, now + 0.1);
+    gain2.gain.exponentialRampToValueAtTime(0.001, now + 0.35);
+    osc2.connect(gain2);
+    gain2.connect(self.ctx.destination);
+    osc2.start(now + 0.1);
+    osc2.stop(now + 0.35);
+
+    // Sparkle overtone
+    var osc3 = this.ctx.createOscillator();
+    var gain3 = this.ctx.createGain();
+    osc3.type = 'sine';
+    osc3.frequency.setValueAtTime(1047, now + 0.15); // C6
+    gain3.gain.setValueAtTime(0.001, now);
+    gain3.gain.setValueAtTime(0.1, now + 0.15);
+    gain3.gain.exponentialRampToValueAtTime(0.001, now + 0.45);
+    osc3.connect(gain3);
+    gain3.connect(self.ctx.destination);
+    osc3.start(now + 0.15);
+    osc3.stop(now + 0.45);
+  },
+
+  /** Play a wrong answer sound — low descending buzz. */
+  playWrong: function () {
+    if (this.muted || !this.ctx) return;
+    this.resume();
+    var now = this.ctx.currentTime;
+    var osc = this.ctx.createOscillator();
+    var gain = this.ctx.createGain();
+    osc.type = 'sawtooth';
+    osc.frequency.setValueAtTime(300, now);
+    osc.frequency.exponentialRampToValueAtTime(150, now + 0.25);
+    gain.gain.setValueAtTime(0.1, now);
+    gain.gain.exponentialRampToValueAtTime(0.001, now + 0.3);
+    osc.connect(gain);
+    gain.connect(this.ctx.destination);
+    osc.start(now);
+    osc.stop(now + 0.3);
+  },
+
+  /** Play a celebration fanfare for level completion. */
+  playCelebration: function () {
+    if (this.muted || !this.ctx) return;
+    this.resume();
+    var now = this.ctx.currentTime;
+    var self = this;
+
+    // Triumphant 4-note fanfare: C5 → E5 → G5 → C6
+    var notes = [
+      { freq: 523, time: 0, dur: 0.2 },     // C5
+      { freq: 659, time: 0.12, dur: 0.2 },   // E5
+      { freq: 784, time: 0.24, dur: 0.2 },   // G5
+      { freq: 1047, time: 0.36, dur: 0.5 }   // C6 (sustained)
+    ];
+
+    for (var i = 0; i < notes.length; i++) {
+      (function (note) {
+        var osc = self.ctx.createOscillator();
+        var gain = self.ctx.createGain();
+        osc.type = 'sine';
+        osc.frequency.setValueAtTime(note.freq, now + note.time);
+        gain.gain.setValueAtTime(0.001, now);
+        gain.gain.setValueAtTime(0.2, now + note.time);
+        gain.gain.setValueAtTime(0.2, now + note.time + note.dur * 0.7);
+        gain.gain.exponentialRampToValueAtTime(0.001, now + note.time + note.dur);
+        osc.connect(gain);
+        gain.connect(self.ctx.destination);
+        osc.start(now + note.time);
+        osc.stop(now + note.time + note.dur);
+      })(notes[i]);
+    }
+
+    // Sparkle arpeggio overlay
+    var sparkles = [1319, 1568, 2093]; // E6, G6, C7
+    for (var j = 0; j < sparkles.length; j++) {
+      (function (freq, idx) {
+        var t = 0.5 + idx * 0.08;
+        var osc = self.ctx.createOscillator();
+        var gain = self.ctx.createGain();
+        osc.type = 'sine';
+        osc.frequency.setValueAtTime(freq, now + t);
+        gain.gain.setValueAtTime(0.001, now);
+        gain.gain.setValueAtTime(0.08, now + t);
+        gain.gain.exponentialRampToValueAtTime(0.001, now + t + 0.3);
+        osc.connect(gain);
+        gain.connect(self.ctx.destination);
+        osc.start(now + t);
+        osc.stop(now + t + 0.3);
+      })(sparkles[j], j);
+    }
+  },
+
+  /** Start ambient background music — gentle learning-enhancing loop. */
+  startBgMusic: function () {
+    if (!this.ctx || this.bgPlaying) return;
+    this.resume();
+    this.bgPlaying = true;
+
+    // Create a soft ambient pad with slow-moving harmonics
+    this.bgMusicGain = this.ctx.createGain();
+    this.bgMusicGain.gain.setValueAtTime(0.04, this.ctx.currentTime);
+    this.bgMusicGain.connect(this.ctx.destination);
+
+    // Base drone notes — a soft C major pad (C3, E3, G3)
+    var freqs = [130.81, 164.81, 196.00]; // C3, E3, G3
+    var self = this;
+
+    for (var i = 0; i < freqs.length; i++) {
+      var osc = this.ctx.createOscillator();
+      var oscGain = this.ctx.createGain();
+      osc.type = 'sine';
+      osc.frequency.setValueAtTime(freqs[i], this.ctx.currentTime);
+
+      // Slow volume modulation for breathing effect
+      oscGain.gain.setValueAtTime(0.3, this.ctx.currentTime);
+
+      // LFO for gentle volume swell
+      var lfo = this.ctx.createOscillator();
+      var lfoGain = this.ctx.createGain();
+      lfo.type = 'sine';
+      lfo.frequency.setValueAtTime(0.1 + i * 0.05, this.ctx.currentTime); // Very slow
+      lfoGain.gain.setValueAtTime(0.15, this.ctx.currentTime);
+      lfo.connect(lfoGain);
+      lfoGain.connect(oscGain.gain);
+      lfo.start(this.ctx.currentTime);
+
+      osc.connect(oscGain);
+      oscGain.connect(self.bgMusicGain);
+      osc.start(this.ctx.currentTime);
+
+      self.bgOscillators.push(osc, lfo);
+    }
+
+    // Add a very subtle high shimmer
+    var shimmer = this.ctx.createOscillator();
+    var shimmerGain = this.ctx.createGain();
+    shimmer.type = 'sine';
+    shimmer.frequency.setValueAtTime(523.25, this.ctx.currentTime); // C5
+    shimmerGain.gain.setValueAtTime(0.05, this.ctx.currentTime);
+
+    var shimmerLfo = this.ctx.createOscillator();
+    var shimmerLfoGain = this.ctx.createGain();
+    shimmerLfo.type = 'sine';
+    shimmerLfo.frequency.setValueAtTime(0.07, this.ctx.currentTime);
+    shimmerLfoGain.gain.setValueAtTime(0.04, this.ctx.currentTime);
+    shimmerLfo.connect(shimmerLfoGain);
+    shimmerLfoGain.connect(shimmerGain.gain);
+    shimmerLfo.start(this.ctx.currentTime);
+
+    shimmer.connect(shimmerGain);
+    shimmerGain.connect(self.bgMusicGain);
+    shimmer.start(this.ctx.currentTime);
+
+    self.bgOscillators.push(shimmer, shimmerLfo);
+  },
+
+  /** Stop background music. */
+  stopBgMusic: function () {
+    if (!this.bgPlaying) return;
+    this.bgPlaying = false;
+
+    // Fade out gracefully
+    if (this.bgMusicGain) {
+      try {
+        this.bgMusicGain.gain.setValueAtTime(this.bgMusicGain.gain.value, this.ctx.currentTime);
+        this.bgMusicGain.gain.exponentialRampToValueAtTime(0.001, this.ctx.currentTime + 0.5);
+      } catch (e) {}
+    }
+
+    var self = this;
+    setTimeout(function () {
+      for (var i = 0; i < self.bgOscillators.length; i++) {
+        try { self.bgOscillators[i].stop(); } catch (e) {}
+        try { self.bgOscillators[i].disconnect(); } catch (e) {}
+      }
+      self.bgOscillators = [];
+      if (self.bgMusicGain) {
+        try { self.bgMusicGain.disconnect(); } catch (e) {}
+        self.bgMusicGain = null;
+      }
+    }, 600);
+  },
+
+  /** Toggle mute state. Returns new muted state. */
+  toggleMute: function () {
+    this.muted = !this.muted;
+    if (this.muted) {
+      this.stopBgMusic();
+    } else {
+      // Restart bg music if on game screen
+      if (document.getElementById('gameScreen').classList.contains('active')) {
+        this.startBgMusic();
+      }
+    }
+    return this.muted;
+  }
+};
+
+
+/* ----------------------------------------------------------------
    NAVIGATION
    ---------------------------------------------------------------- */
 
@@ -208,7 +496,6 @@ function updateHeader() {
     dotsContainer.appendChild(dot);
   }
   saveState();
-  saveScoreToLeaderboard();
 }
 
 function completeLevel() {
@@ -216,6 +503,7 @@ function completeLevel() {
     S.completed[S.currentLevel] = true;
     S.score += 50;
     celebrate();
+    SoundSystem.playCelebration();
     showToast('Level Complete! +50 pts', 'success');
   }
   updateHeader();
@@ -227,12 +515,15 @@ function goToLevel(n) {
   S.currentLevel = n;
   S.levelData = {};
   showScreen('gameScreen');
+  SoundSystem.init();
+  SoundSystem.startBgMusic();
   updateHeader();
   hideHint();
   initLevel(n);
   renderLevel(n);
   document.getElementById('prevBtn').disabled = n === 0;
   document.getElementById('nextBtn').disabled = !S.completed[n];
+  updateSoundBtnIcon();
 }
 
 function initLevel(n)  { [initL1,initL2,initL3,initL4,initL5,initL6,initL7][n](); }
@@ -326,7 +617,7 @@ function renderOptions(container, options, onPick) {
     var btn = document.createElement('button');
     btn.className = 'option-btn';
     btn.textContent = options[i];
-    (function (val, b) { b.addEventListener('click', function () { onPick(val, b); }); })(options[i], btn);
+    (function (val, b) { b.addEventListener('click', function () { SoundSystem.playTap(); onPick(val, b); }); })(options[i], btn);
     container.appendChild(btn);
   }
 }
@@ -428,15 +719,18 @@ function handleL1Click(r, c, cell) {
   var d = S.levelData;
   if (d.qIdx >= d.questions.length) return;
   var target = d.questions[d.qIdx];
+  SoundSystem.playTap();
   if (r === target[0] && c === target[1]) {
     cell.classList.add('cell-correct');
     cell.querySelector('.piece').style.background = 'linear-gradient(135deg, #22c55e, #16a34a)';
     showFloatText(cell, '+10', 'var(--success)');
+    SoundSystem.playCorrect();
     S.score += 10; d.correct++; d.qIdx++;
     updateHeader(); updateTask1(); updateStats1();
     if (d.qIdx >= d.questions.length) setTimeout(completeLevel, 600);
   } else {
     cell.classList.add('cell-wrong');
+    SoundSystem.playWrong();
     setTimeout(function () { cell.classList.remove('cell-wrong'); }, 400);
     showToast('Not quite \u2014 check the row and column numbers', 'error');
   }
@@ -477,7 +771,7 @@ function renderL2() {
   inp.style.cssText = 'margin-top:20px;display:flex;align-items:center;gap:12px;justify-content:center;flex-wrap:wrap';
   inp.innerHTML = '<span style="color:var(--muted);font-weight:600">Dimensions:</span><input type="number" min="1" max="6" class="dim-input" id="dimRows" placeholder="?"><span style="color:var(--accent);font-weight:800;font-size:20px">\u00d7</span><input type="number" min="1" max="6" class="dim-input" id="dimCols" placeholder="?"><button id="dimSubmit" class="btn-primary">Check</button>';
   wrap.appendChild(inp); area.appendChild(wrap);
-  document.getElementById('dimSubmit').addEventListener('click', handleL2Submit);
+  document.getElementById('dimSubmit').addEventListener('click', function () { SoundSystem.playClick(); handleL2Submit(); });
   document.getElementById('dimRows').addEventListener('keydown', function (e) { if (e.key === 'Enter') handleL2Submit(); });
   document.getElementById('dimCols').addEventListener('keydown', function (e) { if (e.key === 'Enter') handleL2Submit(); });
   document.getElementById('dimRows').focus();
@@ -503,12 +797,14 @@ function handleL2Submit() {
   var cv = parseInt(document.getElementById('dimCols').value);
   if (isNaN(rv) || isNaN(cv)) { showToast('Enter both values', 'error'); return; }
   if (rv === m.rows && cv === m.cols) {
+    SoundSystem.playCorrect();
     S.score += 15; d.correct++; d.mIdx++;
     updateHeader(); updateStats2(); updateTask2();
     showToast('Correct! +15 pts', 'success');
     if (d.mIdx >= d.matrices.length) setTimeout(completeLevel, 600);
     else setTimeout(renderL2, 500);
   } else {
+    SoundSystem.playWrong();
     showToast('Wrong \u2014 count again carefully', 'error');
     document.getElementById('dimRows').value = '';
     document.getElementById('dimCols').value = '';
@@ -575,6 +871,7 @@ function handleL3Click(r, c, cell) {
   if (d.result[r][c] !== null) return;
   var allCells = d.boardR.querySelectorAll('.cell');
   for (var i = 0; i < allCells.length; i++) allCells[i].classList.remove('cell-selected');
+  SoundSystem.playTap();
   cell.classList.add('cell-selected');
   clearHighlights(d.boardA); clearHighlights(d.boardB);
   getCell(d.boardA, r, c).classList.add('cell-highlight');
@@ -589,6 +886,7 @@ function handleL3Answer(v, correct, cell, btn) {
   var d = S.levelData; disableOptions(d.optionsDiv);
   if (v === correct) {
     btn.classList.add('correct');
+    SoundSystem.playCorrect();
     cell.innerHTML = '<span style="font-weight:800;color:var(--success)">' + correct + '</span>';
     cell.classList.add('cell-correct'); cell.classList.remove('cell-selected');
     d.result[d.selR][d.selC] = correct; d.filled++;
@@ -598,7 +896,7 @@ function handleL3Answer(v, correct, cell, btn) {
     d.optionsDiv.innerHTML = '';
     if (d.filled >= d.total) setTimeout(completeLevel, 600);
   } else {
-    btn.classList.add('wrong'); showToast('Not the right sum \u2014 try again', 'error');
+    btn.classList.add('wrong'); SoundSystem.playWrong(); showToast('Not the right sum \u2014 try again', 'error');
     setTimeout(function () { enableOptions(d.optionsDiv); }, 600);
   }
 }
@@ -653,6 +951,7 @@ function handleL4Click(r, c, cell) {
   clearHighlights(d.board);
   var allCells = d.board.querySelectorAll('.cell');
   for (var i = 0; i < allCells.length; i++) allCells[i].classList.remove('cell-selected');
+  SoundSystem.playTap();
   cell.classList.add('cell-selected');
   d.selR = r; d.selC = c;
   var correct = d.mat[r][c] * d.scalar;
@@ -664,6 +963,7 @@ function handleL4Answer(v, correct, cell, btn) {
   var d = S.levelData; disableOptions(d.optionsDiv);
   if (v === correct) {
     btn.classList.add('correct');
+    SoundSystem.playCorrect();
     cell.innerHTML = '<span style="font-weight:800;color:var(--success)">' + correct + '</span>';
     cell.classList.add('cell-correct'); cell.classList.remove('cell-selected');
     d.result[d.selR][d.selC] = correct; d.filled++;
@@ -672,7 +972,7 @@ function handleL4Answer(v, correct, cell, btn) {
     d.optionsDiv.innerHTML = '';
     if (d.filled >= d.total) setTimeout(completeLevel, 600);
   } else {
-    btn.classList.add('wrong'); showToast('Wrong product \u2014 try again', 'error');
+    btn.classList.add('wrong'); SoundSystem.playWrong(); showToast('Wrong product \u2014 try again', 'error');
     setTimeout(function () { enableOptions(d.optionsDiv); }, 600);
   }
 }
@@ -762,6 +1062,7 @@ function handleL5Answer(v, correct, btn) {
   var d = S.levelData; disableOptions(d.optionsDiv);
   if (v === correct) {
     btn.classList.add('correct');
+    SoundSystem.playCorrect();
     var pos = d.steps[d.step];
     getCell(d.boardC, pos[0], pos[1]).innerHTML = '<span style="font-weight:800;color:var(--success)">' + correct + '</span>';
     getCell(d.boardC, pos[0], pos[1]).classList.add('cell-correct');
@@ -774,7 +1075,7 @@ function handleL5Answer(v, correct, btn) {
     if (d.step >= 4) setTimeout(completeLevel, 600);
     else setTimeout(renderL5Step, 700);
   } else {
-    btn.classList.add('wrong'); showToast('Wrong sum \u2014 add the products carefully', 'error');
+    btn.classList.add('wrong'); SoundSystem.playWrong(); showToast('Wrong sum \u2014 add the products carefully', 'error');
     setTimeout(function () { enableOptions(d.optionsDiv); }, 600);
   }
 }
@@ -902,6 +1203,7 @@ function handleL6Answer(v, correct, btn) {
   var d = S.levelData; disableOptions(d.optionsDiv);
   if (v === correct) {
     btn.classList.add('correct');
+    SoundSystem.playCorrect();
     var resultSpan = d.compDiv.querySelector('.result');
     if (resultSpan) { resultSpan.textContent = correct; resultSpan.style.color = 'var(--success)'; }
     S.score += (d.step === 2) ? 10 : 5; d.correct++;
@@ -920,7 +1222,7 @@ function handleL6Answer(v, correct, btn) {
       else setTimeout(renderL6Step, 1600);
     }
   } else {
-    btn.classList.add('wrong'); showToast('Wrong \u2014 try again', 'error');
+    btn.classList.add('wrong'); SoundSystem.playWrong(); showToast('Wrong \u2014 try again', 'error');
     setTimeout(function () { enableOptions(d.optionsDiv); }, 600);
   }
 }
@@ -1087,10 +1389,11 @@ function getAllMoves(grid, color) {
 function handleL7Click(r, c) {
   var d = S.levelData;
   if (d.over || d.turn !== 'teal') return;
+  SoundSystem.playTap();
   if (d.selected) {
     var move = null;
     for (var i = 0; i < d.validMoves.length; i++) { if (d.validMoves[i].to[0] === r && d.validMoves[i].to[1] === c) { move = d.validMoves[i]; break; } }
-    if (move) { executeL7Move(move); return; }
+    if (move) { SoundSystem.playCorrect(); executeL7Move(move); return; }
   }
   if (d.grid[r][c] && d.grid[r][c].color === 'teal') {
     var allMoves = getAllMoves(d.grid, 'teal'), pieceMoves = [];
@@ -1103,6 +1406,7 @@ function handleL7Click(r, c) {
     else setHint('No captures available. Click a <b>white circle</b> to move diagonally forward. Look for gold squares (\u00d72) for a scalar multiplication bonus!');
     renderL7Board(); return;
   }
+  SoundSystem.playWrong();
   d.selected = null; d.validMoves = [];
   setHint('Click one of your teal pieces to see where it can move.');
   renderL7Board();
@@ -1116,12 +1420,14 @@ function executeL7Move(move) {
     var cap = d.grid[move.captured[0]][move.captured[1]];
     var oldVal = piece.value; piece.value += cap.value;
     d.redTotal -= cap.value; d.grid[move.captured[0]][move.captured[1]] = null;
+    SoundSystem.playCorrect();
     showToast('Captured! ' + oldVal + ' + ' + cap.value + ' = ' + piece.value + ' (matrix addition)', 'success');
   }
   var mult = getScalarMultiplier(d, move.to[0], move.to[1]);
   if (mult > 1) {
     var prev = piece.value; piece.value *= mult;
     d.tealTotal += piece.value - prev;
+    SoundSystem.playCorrect();
     showToast('Scalar \u00d7' + mult + '! ' + prev + ' \u2192 ' + piece.value, 'info');
   }
   d.grid[move.to[0]][move.to[1]] = piece;
@@ -1245,6 +1551,9 @@ function handleSignup() {
   saveUsers(users);
   setCurrentUser(username, false);
 
+  // Initialize leaderboard entry
+  initLeaderboardEntry(username, false);
+
   showToast('Account created! Welcome, ' + username, 'success');
   updateLoginUI();
   goToLevel(0);
@@ -1280,13 +1589,15 @@ function handleLogin() {
 function handleGuest() {
   var guestName = 'Guest_' + Math.floor(Math.random() * 10000);
   setCurrentUser(guestName, true);
-  showToast('Playing as guest', 'info');
+  initLeaderboardEntry(guestName, true);
+  showToast('Playing as guest. Scores won\'t be saved permanently.', 'info');
   updateLoginUI();
   goToLevel(0);
 }
 
 /** Log out current user. */
 function handleLogout() {
+  updateLeaderboardForCurrentUser();
   clearSession();
   clearSave();
   S.currentLevel = 0;
@@ -1321,7 +1632,7 @@ function showAuthSignup() {
   document.getElementById('signupForm').style.display = 'block';
   document.getElementById('loginForm').style.display = 'none';
   document.getElementById('authTitle').textContent = 'Sign Up';
-  document.getElementById('authSubtitle').textContent = 'Create an account to track your progress';
+  document.getElementById('authSubtitle').textContent = 'Create an account to track your progress and compete on the leaderboard';
   showScreen('authScreen');
   document.getElementById('signupUsername').focus();
 }
@@ -1334,6 +1645,160 @@ function showAuthLogin() {
   document.getElementById('authSubtitle').textContent = 'Welcome back! Log in to continue your progress';
   showScreen('authScreen');
   document.getElementById('loginUsername').focus();
+}
+
+
+/* ================================================================
+   LEADERBOARD SYSTEM
+   ================================================================ */
+
+/** Get leaderboard data from localStorage. */
+function getLeaderboard() {
+  try {
+    var raw = localStorage.getItem(LEADERBOARD_KEY);
+    return raw ? JSON.parse(raw) : [];
+  } catch (e) { return []; }
+}
+
+/** Save leaderboard data to localStorage. */
+function saveLeaderboard(data) {
+  try { localStorage.setItem(LEADERBOARD_KEY, JSON.stringify(data)); } catch (e) {}
+}
+
+/** Initialize a leaderboard entry for a new user. */
+function initLeaderboardEntry(username, isGuest) {
+  var lb = getLeaderboard();
+  // Check if entry already exists
+  for (var i = 0; i < lb.length; i++) {
+    if (lb[i].username === username) return;
+  }
+  lb.push({ username: username, score: 0, levelsCompleted: 0, isGuest: isGuest, updatedAt: Date.now() });
+  saveLeaderboard(lb);
+}
+
+/** Update leaderboard entry for the current user. */
+function updateLeaderboardForCurrentUser() {
+  var user = getCurrentUser();
+  if (!user) return;
+
+  var lb = getLeaderboard();
+  var levelsCompleted = 0;
+  for (var key in S.completed) {
+    if (S.completed[key]) levelsCompleted++;
+  }
+
+  var found = false;
+  for (var i = 0; i < lb.length; i++) {
+    if (lb[i].username === user.username) {
+      // Only update if score improved
+      if (S.score > lb[i].score) {
+        lb[i].score = S.score;
+        lb[i].levelsCompleted = levelsCompleted;
+        lb[i].updatedAt = Date.now();
+      } else if (levelsCompleted > lb[i].levelsCompleted) {
+        lb[i].levelsCompleted = levelsCompleted;
+        lb[i].updatedAt = Date.now();
+      }
+      found = true;
+      break;
+    }
+  }
+
+  if (!found) {
+    lb.push({ username: user.username, score: S.score, levelsCompleted: levelsCompleted, isGuest: user.isGuest, updatedAt: Date.now() });
+  }
+
+  // Sort by score descending, then by levelsCompleted, then by date
+  lb.sort(function (a, b) {
+    if (b.score !== a.score) return b.score - a.score;
+    if (b.levelsCompleted !== a.levelsCompleted) return b.levelsCompleted - a.levelsCompleted;
+    return a.updatedAt - b.updatedAt;
+  });
+
+  // Keep only top 50 entries to avoid storage bloat
+  if (lb.length > 50) lb = lb.slice(0, 50);
+
+  saveLeaderboard(lb);
+}
+
+/** Render the leaderboard screen. */
+function renderLeaderboard() {
+  var lb = getLeaderboard();
+  var user = getCurrentUser();
+  var tbody = document.getElementById('leaderboardBody');
+  var emptyMsg = document.getElementById('lbEmpty');
+  var tableWrap = document.querySelector('.leaderboard-table-wrap');
+
+  tbody.innerHTML = '';
+
+  if (lb.length === 0) {
+    emptyMsg.style.display = 'block';
+    tableWrap.style.display = 'none';
+    return;
+  }
+
+  emptyMsg.style.display = 'none';
+  tableWrap.style.display = 'block';
+
+  // Show top 20
+  var topPlayers = lb.slice(0, 20);
+  var medals = ['🥇', '🥈', '🥉'];
+
+  for (var i = 0; i < topPlayers.length; i++) {
+    var entry = topPlayers[i];
+    var tr = document.createElement('tr');
+
+    // Highlight current user's row
+    if (user && entry.username === user.username) {
+      tr.classList.add('lb-current-user');
+    }
+
+    // Rank cell
+    var rankTd = document.createElement('td');
+    rankTd.className = 'lb-rank';
+    if (i < 3) {
+      rankTd.innerHTML = '<div class="lb-rank-cell"><span class="lb-medal">' + medals[i] + '</span></div>';
+    } else {
+      rankTd.innerHTML = '<div class="lb-rank-cell"><span class="lb-rank-number">' + (i + 1) + '</span></div>';
+    }
+    tr.appendChild(rankTd);
+
+    // Player cell
+    var playerTd = document.createElement('td');
+    playerTd.className = 'lb-player';
+    var nameHTML = '<div class="lb-player-name">';
+    if (entry.isGuest) {
+      nameHTML += '<i class="fa-solid fa-user-secret lb-guest-icon"></i> ';
+    }
+    nameHTML += escapeHTML(entry.username);
+    if (user && entry.username === user.username) {
+      nameHTML += ' <span class="lb-you-tag">You</span>';
+    }
+    nameHTML += '</div>';
+    playerTd.innerHTML = nameHTML;
+    tr.appendChild(playerTd);
+
+    // Score cell
+    var scoreTd = document.createElement('td');
+    scoreTd.className = 'lb-score';
+    scoreTd.textContent = entry.score + ' pts';
+    tr.appendChild(scoreTd);
+
+    // Levels cell
+    var levelsTd = document.createElement('td');
+    levelsTd.className = 'lb-levels';
+    levelsTd.textContent = entry.levelsCompleted + '/7';
+    tr.appendChild(levelsTd);
+
+    tbody.appendChild(tr);
+  }
+}
+
+/** Escape HTML special characters to prevent XSS. */
+function escapeHTML(str) {
+  var div = document.createElement('div');
+  div.appendChild(document.createTextNode(str));
+  return div.innerHTML;
 }
 
 
@@ -1366,6 +1831,8 @@ function buildIntroBoard() {
 
 // --- Start button: show auth screen if not logged in, else go to game ---
 document.getElementById('startBtn').addEventListener('click', function () {
+  SoundSystem.init();
+  SoundSystem.playClick();
   var user = getCurrentUser();
   if (user) {
     // Already logged in, go straight to game
@@ -1377,22 +1844,41 @@ document.getElementById('startBtn').addEventListener('click', function () {
   }
 });
 
+// --- Leaderboard button on intro screen ---
+document.getElementById('introLeaderboardBtn').addEventListener('click', function () {
+  SoundSystem.init();
+  SoundSystem.playClick();
+  renderLeaderboard();
+  showScreen('leaderboardScreen');
+});
+
+// --- Leaderboard button in game header ---
+document.getElementById('gameLeaderboardBtn').addEventListener('click', function () {
+  SoundSystem.playClick();
+  updateLeaderboardForCurrentUser();
+  renderLeaderboard();
+  showScreen('leaderboardScreen');
+});
+
 // --- Auth screen: toggle signup/login forms ---
 document.getElementById('showLogin').addEventListener('click', function (e) {
   e.preventDefault();
+  SoundSystem.playClick();
   showAuthLogin();
 });
 
 document.getElementById('showSignup').addEventListener('click', function (e) {
   e.preventDefault();
+  SoundSystem.playClick();
   showAuthSignup();
 });
 
 // --- Auth form submissions ---
-document.getElementById('signupBtn').addEventListener('click', handleSignup);
-document.getElementById('loginBtn').addEventListener('click', handleLogin);
-document.getElementById('guestBtn').addEventListener('click', handleGuest);
+document.getElementById('signupBtn').addEventListener('click', function () { SoundSystem.playClick(); handleSignup(); });
+document.getElementById('loginBtn').addEventListener('click', function () { SoundSystem.playClick(); handleLogin(); });
+document.getElementById('guestBtn').addEventListener('click', function () { SoundSystem.init(); SoundSystem.playClick(); handleGuest(); });
 document.getElementById('authBackBtn').addEventListener('click', function () {
+  SoundSystem.playClick();
   showScreen('introScreen');
 });
 
@@ -1405,11 +1891,36 @@ document.getElementById('signupConfirm').addEventListener('keydown', function (e
 document.getElementById('loginUsername').addEventListener('keydown', function (e) { if (e.key === 'Enter') document.getElementById('loginPassword').focus(); });
 document.getElementById('loginPassword').addEventListener('keydown', function (e) { if (e.key === 'Enter') handleLogin(); });
 
+// --- Leaderboard screen buttons ---
+document.getElementById('lbBackBtn').addEventListener('click', function () {
+  SoundSystem.playClick();
+  // Go back to whichever screen was previous
+  var gameActive = document.getElementById('gameScreen').classList.contains('was-active');
+  if (gameActive) {
+    showScreen('gameScreen');
+  } else {
+    showScreen('introScreen');
+  }
+});
+
+document.getElementById('lbPlayBtn').addEventListener('click', function () {
+  SoundSystem.init();
+  SoundSystem.playClick();
+  var user = getCurrentUser();
+  if (user) {
+    loadState();
+    goToLevel(S.currentLevel);
+  } else {
+    showAuthSignup();
+  }
+});
+
 // --- Game navigation buttons ---
-document.getElementById('prevBtn').addEventListener('click', function () { goToLevel(S.currentLevel - 1); });
-document.getElementById('nextBtn').addEventListener('click', function () { goToLevel(S.currentLevel + 1); });
-document.getElementById('resetBtn').addEventListener('click', function () { goToLevel(S.currentLevel); });
+document.getElementById('prevBtn').addEventListener('click', function () { SoundSystem.playClick(); goToLevel(S.currentLevel - 1); });
+document.getElementById('nextBtn').addEventListener('click', function () { SoundSystem.playClick(); goToLevel(S.currentLevel + 1); });
+document.getElementById('resetBtn').addEventListener('click', function () { SoundSystem.playClick(); goToLevel(S.currentLevel); });
 document.getElementById('clearProgressBtn').addEventListener('click', function () {
+  SoundSystem.playClick();
   clearSave();
   showToast('All progress cleared', 'info');
   showScreen('introScreen');
@@ -1418,11 +1929,12 @@ document.getElementById('clearProgressBtn').addEventListener('click', function (
 // --- User menu dropdown ---
 document.getElementById('userMenuBtn').addEventListener('click', function (e) {
   e.stopPropagation();
+  SoundSystem.playClick();
   var dropdown = document.getElementById('userDropdown');
   dropdown.style.display = dropdown.style.display === 'none' ? 'block' : 'none';
 });
 
-document.getElementById('logoutBtn').addEventListener('click', handleLogout);
+document.getElementById('logoutBtn').addEventListener('click', function () { SoundSystem.playClick(); handleLogout(); });
 
 // Close dropdown when clicking outside
 document.addEventListener('click', function (e) {
@@ -1437,148 +1949,64 @@ document.addEventListener('click', function (e) {
 document.addEventListener('keydown', function (e) {
   var introActive = document.getElementById('introScreen').classList.contains('active');
   var authActive = document.getElementById('authScreen').classList.contains('active');
+  var lbActive = document.getElementById('leaderboardScreen').classList.contains('active');
 
   if (introActive) { if (e.key === 'Enter') { var user = getCurrentUser(); if (user) { loadState(); goToLevel(S.currentLevel); } else showAuthSignup(); } return; }
-  if (authActive) return;
+  if (authActive || lbActive) return;
 
   if (e.key === 'ArrowRight' && S.completed[S.currentLevel]) goToLevel(S.currentLevel + 1);
   if (e.key === 'ArrowLeft') goToLevel(S.currentLevel - 1);
   if (e.key === 'r' || e.key === 'R') goToLevel(S.currentLevel);
 });
 
+// --- Track which screen was active before leaderboard ---
+var _origShowScreen = showScreen;
+showScreen = function (id) {
+  // Mark game screen as was-active before leaving
+  if (document.getElementById('gameScreen').classList.contains('active')) {
+    document.getElementById('gameScreen').classList.add('was-active');
+  } else {
+    document.getElementById('gameScreen').classList.remove('was-active');
+  }
+  // Stop background music when leaving game screen
+  if (id !== 'gameScreen') {
+    SoundSystem.stopBgMusic();
+  }
+  _origShowScreen(id);
+};
+
 // --- Startup ---
 buildIntroBoard();
 updateLoginUI();
 
-/* ----------------------------------------------------------------
-   FIREBASE LEADERBOARD SYSTEM
-   ---------------------------------------------------------------- */
-
-// Firebase configuration — replace with YOUR Firebase project config
-var firebaseConfig = {
-  apiKey: "YOUR_API_KEY",
-  authDomain: "YOUR_PROJECT.firebaseapp.com",
-  projectId: "YOUR_PROJECT_ID",
-  storageBucket: "YOUR_PROJECT.appspot.com",
-  messagingSenderId: "YOUR_SENDER_ID",
-  appId: "YOUR_APP_ID"
-};
-
-// Initialize Firebase
-var db = null;
-var firebaseReady = false;
-try {
-  firebase.initializeApp(firebaseConfig);
-  db = firebase.firestore();
-  if (window.location.hostname === 'localhost') {
-    db.settings({ localTimestamps: true });
+// --- Sound toggle button ---
+function updateSoundBtnIcon() {
+  var btn = document.getElementById('soundToggleBtn');
+  if (!btn) return;
+  var icon = btn.querySelector('i');
+  if (SoundSystem.muted) {
+    icon.className = 'fa-solid fa-volume-xmark';
+    btn.title = 'Sound off';
+  } else {
+    icon.className = 'fa-solid fa-volume-high';
+    btn.title = 'Sound on';
   }
-  firebaseReady = true;
-} catch (e) {
-  console.warn('Firebase init failed — leaderboard disabled:', e);
 }
 
-/** Save or update the current user's score on Firebase. */
-function saveScoreToLeaderboard() {
-  if (!firebaseReady || !db) return;
-  var user = getCurrentUser();
-  if (!user) return; // guests are not ranked
-  var completedCount = Object.keys(S.completed).length;
-  var docRef = db.collection('leaderboard').doc(user);
-  docRef.set({
-    username: user,
-    score: S.score,
-    levelsCompleted: completedCount,
-    updatedAt: firebase.firestore.FieldValue.serverTimestamp()
-  }).catch(function (err) {
-    console.warn('Leaderboard save failed:', err);
-  });
-}
-
-/** Fetch top 20 players from Firestore and render the leaderboard. */
-function loadAndRenderLeaderboard() {
-  if (!firebaseReady || !db) {
-    document.getElementById('leaderboardLoading').style.display = 'none';
-    document.getElementById('leaderboardEmpty').style.display = 'block';
-    document.getElementById('leaderboardEmpty').querySelector('p').textContent = 'Leaderboard unavailable (Firebase not configured).';
-    return;
-  }
-  document.getElementById('leaderboardLoading').style.display = 'block';
-  document.getElementById('leaderboardEmpty').style.display = 'none';
-  document.getElementById('leaderboardTable').style.display = 'none';
-
-  db.collection('leaderboard')
-    .orderBy('score', 'desc')
-    .orderBy('updatedAt', 'asc')
-    .limit(20)
-    .get()
-    .then(function (querySnapshot) {
-      document.getElementById('leaderboardLoading').style.display = 'none';
-      if (querySnapshot.empty) {
-        document.getElementById('leaderboardEmpty').style.display = 'block';
-        return;
-      }
-      var currentUser = getCurrentUser();
-      var tbody = document.getElementById('leaderboardBody');
-      tbody.innerHTML = '';
-      var rank = 0;
-      querySnapshot.forEach(function (doc) {
-        rank++;
-        var data = doc.data();
-        var isYou = (data.username === currentUser);
-        var tr = document.createElement('tr');
-        if (isYou) tr.style.background = 'rgba(245, 158, 11, 0.06)';
-
-        var rankClass = 'lb-rank-cell';
-        if (rank === 1) rankClass += ' rank-1';
-        else if (rank === 2) rankClass += ' rank-2';
-        else if (rank === 3) rankClass += ' rank-3';
-
-        var rankSymbol = rank;
-        if (rank === 1) rankSymbol = '<i class="fa-solid fa-crown"></i>';
-        else if (rank === 2) rankSymbol = '2';
-        else if (rank === 3) rankSymbol = '3';
-
-        tr.innerHTML =
-          '<td class="' + rankClass + '">' + rankSymbol + '</td>' +
-          '<td class="lb-player-cell' + (isYou ? ' is-you' : '') + '">' + data.username + (isYou ? ' (you)' : '') + '</td>' +
-          '<td class="lb-score-cell">' + data.score + '</td>' +
-          '<td class="lb-levels-cell">' + data.levelsCompleted + '/7</td>';
-        tbody.appendChild(tr);
-      });
-      document.getElementById('leaderboardTable').style.display = 'table';
-    })
-    .catch(function (err) {
-      console.warn('Leaderboard fetch failed:', err);
-      document.getElementById('leaderboardLoading').style.display = 'none';
-      document.getElementById('leaderboardEmpty').style.display = 'block';
-      document.getElementById('leaderboardEmpty').querySelector('p').textContent = 'Could not load leaderboard. Check your connection.';
-    });
-}
-
-/** Show the leaderboard screen. */
-var _leaderboardPreviousScreen = 'introScreen';
-function showLeaderboardScreen() {
-  // Remember which screen was active before opening leaderboard
-  var screens = document.querySelectorAll('.screen');
-  for (var i = 0; i < screens.length; i++) {
-    if (screens[i].classList.contains('active') && screens[i].id !== 'leaderboardScreen') {
-      _leaderboardPreviousScreen = screens[i].id;
-      break;
-    }
-  }
-  showScreen('leaderboardScreen');
-  loadAndRenderLeaderboard();
-}
-
-// --- Leaderboard button handlers ---
-document.getElementById('introLeaderboardBtn').addEventListener('click', showLeaderboardScreen);
-document.getElementById('headerLeaderboardBtn').addEventListener('click', showLeaderboardScreen);
-document.getElementById('leaderboardBackBtn').addEventListener('click', function () {
-  showScreen(_leaderboardPreviousScreen);
+document.getElementById('soundToggleBtn').addEventListener('click', function () {
+  SoundSystem.init();
+  SoundSystem.toggleMute();
+  updateSoundBtnIcon();
+  if (!SoundSystem.muted) SoundSystem.playClick();
 });
 
-// --- Load saved state on startup — if logged in and progress exists, resume ---
+// --- Hint button sound ---
+var _origHintHandler = document.getElementById('hintBtn').onclick;
+document.getElementById('hintBtn').addEventListener('click', function () {
+  SoundSystem.playClick();
+});
+
+// Load saved state on startup — if logged in and progress exists, resume
 var currentUser = getCurrentUser();
 if (currentUser && loadState()) {
   goToLevel(S.currentLevel);
