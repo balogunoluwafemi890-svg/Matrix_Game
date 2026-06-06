@@ -141,6 +141,45 @@ var SAVE_KEY = 'matrix_checkers_save';
 var SAVE_VERSION = 2;
 var USERS_KEY = 'matrix_checkers_users';
 var LEADERBOARD_KEY = 'matrix_checkers_leaderboard';
+
+/* ----------------------------------------------------------------
+   FIREBASE CONFIGURATION
+   ---------------------------------------------------------------- */
+var firebaseConfig = {
+  apiKey: "AIzaSyBx5LpLZRM1UeCbpKLvDOE7RgMq3P4dE1s",
+  authDomain: "matrix-checkers-game.firebaseapp.com",
+  projectId: "matrix-checkers-game",
+  storageBucket: "matrix-checkers-game.firebasestorage.app",
+  messagingSenderId: "548236193057",
+  appId: "1:548236193057:web:c6e32a4c3e4d6e3c7ab9e5"
+};
+
+// Initialize Firebase
+var firebaseApp = null;
+var db = null;
+var firebaseReady = false;
+
+function initFirebase() {
+  if (firebaseReady) return;
+  try {
+    firebaseApp = firebase.initializeApp(firebaseConfig);
+    db = firebase.firestore();
+    // Enable offline persistence so the app works even without internet
+    db.enablePersistence({ synchronizeTabs: true }).catch(function(err) {
+      if (err.code === 'failed-precondition') {
+        // Multiple tabs open, persistence can only be enabled in one tab at a time
+        console.warn('Firebase persistence: multiple tabs open');
+      } else if (err.code === 'unimplemented') {
+        // Browser doesn't support persistence
+        console.warn('Firebase persistence: not supported by browser');
+      }
+    });
+    firebaseReady = true;
+  } catch (e) {
+    console.error('Firebase init failed:', e);
+    firebaseReady = false;
+  }
+}
 var SESSION_KEY = 'matrix_checkers_session';
 
 /** Persist current progress to localStorage. */
@@ -771,7 +810,7 @@ function renderL2() {
   inp.style.cssText = 'margin-top:20px;display:flex;align-items:center;gap:12px;justify-content:center;flex-wrap:wrap';
   inp.innerHTML = '<span style="color:var(--muted);font-weight:600">Dimensions:</span><input type="number" min="1" max="6" class="dim-input" id="dimRows" placeholder="?"><span style="color:var(--accent);font-weight:800;font-size:20px">\u00d7</span><input type="number" min="1" max="6" class="dim-input" id="dimCols" placeholder="?"><button id="dimSubmit" class="btn-primary">Check</button>';
   wrap.appendChild(inp); area.appendChild(wrap);
-  document.getElementById('dimSubmit').addEventListener('click', function () { SoundSystem.playClick(); handleL2Submit(); });
+  document.getElementById('dimSubmit').addEventListener('click', function () { handleL2Submit(); });
   document.getElementById('dimRows').addEventListener('keydown', function (e) { if (e.key === 'Enter') handleL2Submit(); });
   document.getElementById('dimCols').addEventListener('keydown', function (e) { if (e.key === 'Enter') handleL2Submit(); });
   document.getElementById('dimRows').focus();
@@ -1649,48 +1688,108 @@ function showAuthLogin() {
 
 
 /* ================================================================
-   LEADERBOARD SYSTEM
+   LEADERBOARD SYSTEM — Firebase Firestore + localStorage fallback
    ================================================================ */
 
-/** Get leaderboard data from localStorage. */
-function getLeaderboard() {
+/** Escape HTML special characters to prevent XSS. */
+function escapeHTML(str) {
+  var div = document.createElement('div');
+  div.appendChild(document.createTextNode(str));
+  return div.innerHTML;
+}
+
+/** Get leaderboard data from localStorage (fallback). */
+function getLeaderboardLocal() {
   try {
     var raw = localStorage.getItem(LEADERBOARD_KEY);
     return raw ? JSON.parse(raw) : [];
   } catch (e) { return []; }
 }
 
-/** Save leaderboard data to localStorage. */
-function saveLeaderboard(data) {
+/** Save leaderboard data to localStorage (fallback). */
+function saveLeaderboardLocal(data) {
   try { localStorage.setItem(LEADERBOARD_KEY, JSON.stringify(data)); } catch (e) {}
 }
 
 /** Initialize a leaderboard entry for a new user. */
 function initLeaderboardEntry(username, isGuest) {
-  var lb = getLeaderboard();
-  // Check if entry already exists
+  // Save to Firestore
+  if (firebaseReady && db) {
+    var docRef = db.collection('leaderboard').doc(username);
+    docRef.get().then(function(doc) {
+      if (!doc.exists) {
+        docRef.set({
+          username: username,
+          score: 0,
+          levelsCompleted: 0,
+          isGuest: isGuest,
+          updatedAt: firebase.firestore.FieldValue.serverTimestamp()
+        }).catch(function(err) {
+          console.error('Firebase initLeaderboardEntry set error:', err);
+        });
+      }
+    }).catch(function(err) {
+      console.error('Firebase initLeaderboardEntry get error:', err);
+    });
+  }
+
+  // Also keep localStorage as offline cache
+  var lb = getLeaderboardLocal();
   for (var i = 0; i < lb.length; i++) {
     if (lb[i].username === username) return;
   }
   lb.push({ username: username, score: 0, levelsCompleted: 0, isGuest: isGuest, updatedAt: Date.now() });
-  saveLeaderboard(lb);
+  saveLeaderboardLocal(lb);
 }
 
-/** Update leaderboard entry for the current user. */
+/** Update leaderboard entry for the current user (writes to Firestore). */
 function updateLeaderboardForCurrentUser() {
   var user = getCurrentUser();
   if (!user) return;
 
-  var lb = getLeaderboard();
   var levelsCompleted = 0;
   for (var key in S.completed) {
     if (S.completed[key]) levelsCompleted++;
   }
 
+  // Update Firestore
+  if (firebaseReady && db) {
+    var docRef = db.collection('leaderboard').doc(user.username);
+    db.runTransaction(function(transaction) {
+      return transaction.get(docRef).then(function(doc) {
+        var data;
+        if (!doc.exists) {
+          // Create new entry
+          data = {
+            username: user.username,
+            score: S.score,
+            levelsCompleted: levelsCompleted,
+            isGuest: user.isGuest || false,
+            updatedAt: firebase.firestore.FieldValue.serverTimestamp()
+          };
+          transaction.set(docRef, data);
+        } else {
+          // Only update if score or levels improved
+          var existing = doc.data();
+          var newScore = Math.max(existing.score || 0, S.score);
+          var newLevels = Math.max(existing.levelsCompleted || 0, levelsCompleted);
+          transaction.update(docRef, {
+            score: newScore,
+            levelsCompleted: newLevels,
+            updatedAt: firebase.firestore.FieldValue.serverTimestamp()
+          });
+        }
+      });
+    }).catch(function(err) {
+      console.error('Firestore transaction failed:', err);
+    });
+  }
+
+  // Also update localStorage as offline cache
+  var lb = getLeaderboardLocal();
   var found = false;
   for (var i = 0; i < lb.length; i++) {
     if (lb[i].username === user.username) {
-      // Only update if score improved
       if (S.score > lb[i].score) {
         lb[i].score = S.score;
         lb[i].levelsCompleted = levelsCompleted;
@@ -1703,32 +1802,63 @@ function updateLeaderboardForCurrentUser() {
       break;
     }
   }
-
   if (!found) {
     lb.push({ username: user.username, score: S.score, levelsCompleted: levelsCompleted, isGuest: user.isGuest, updatedAt: Date.now() });
   }
-
-  // Sort by score descending, then by levelsCompleted, then by date
   lb.sort(function (a, b) {
     if (b.score !== a.score) return b.score - a.score;
     if (b.levelsCompleted !== a.levelsCompleted) return b.levelsCompleted - a.levelsCompleted;
     return a.updatedAt - b.updatedAt;
   });
-
-  // Keep only top 50 entries to avoid storage bloat
   if (lb.length > 50) lb = lb.slice(0, 50);
-
-  saveLeaderboard(lb);
+  saveLeaderboardLocal(lb);
 }
 
-/** Render the leaderboard screen. */
+/** Render the leaderboard screen (fetches from Firestore, falls back to localStorage). */
 function renderLeaderboard() {
-  var lb = getLeaderboard();
   var user = getCurrentUser();
   var tbody = document.getElementById('leaderboardBody');
   var emptyMsg = document.getElementById('lbEmpty');
   var tableWrap = document.querySelector('.leaderboard-table-wrap');
 
+  tbody.innerHTML = '';
+
+  // Show loading state
+  emptyMsg.style.display = 'none';
+  tableWrap.style.display = 'block';
+  tbody.innerHTML = '<tr><td colspan="4" style="text-align:center;padding:24px;color:var(--muted)"><i class="fa-solid fa-spinner fa-spin" style="margin-right:8px"></i>Loading leaderboard...</td></tr>';
+
+  // Try Firestore first
+  if (firebaseReady && db) {
+    db.collection('leaderboard')
+      .orderBy('score', 'desc')
+      .orderBy('levelsCompleted', 'desc')
+      .limit(20)
+      .get()
+      .then(function(querySnapshot) {
+        var lb = [];
+        querySnapshot.forEach(function(doc) {
+          lb.push(doc.data());
+        });
+        displayLeaderboard(lb, user, tbody, emptyMsg, tableWrap);
+      })
+      .catch(function(err) {
+        console.error('Firestore fetch failed, using local cache:', err);
+        // Fall back to localStorage
+        var lbLocal = getLeaderboardLocal();
+        var topLocal = lbLocal.slice(0, 20);
+        displayLeaderboard(topLocal, user, tbody, emptyMsg, tableWrap);
+      });
+  } else {
+    // No Firebase — use localStorage
+    var lbLocal = getLeaderboardLocal();
+    var topLocal = lbLocal.slice(0, 20);
+    displayLeaderboard(topLocal, user, tbody, emptyMsg, tableWrap);
+  }
+}
+
+/** Display leaderboard data in the table. */
+function displayLeaderboard(lb, user, tbody, emptyMsg, tableWrap) {
   tbody.innerHTML = '';
 
   if (lb.length === 0) {
@@ -1740,12 +1870,10 @@ function renderLeaderboard() {
   emptyMsg.style.display = 'none';
   tableWrap.style.display = 'block';
 
-  // Show top 20
-  var topPlayers = lb.slice(0, 20);
   var medals = ['🥇', '🥈', '🥉'];
 
-  for (var i = 0; i < topPlayers.length; i++) {
-    var entry = topPlayers[i];
+  for (var i = 0; i < lb.length; i++) {
+    var entry = lb[i];
     var tr = document.createElement('tr');
 
     // Highlight current user's row
@@ -1794,13 +1922,6 @@ function renderLeaderboard() {
   }
 }
 
-/** Escape HTML special characters to prevent XSS. */
-function escapeHTML(str) {
-  var div = document.createElement('div');
-  div.appendChild(document.createTextNode(str));
-  return div.innerHTML;
-}
-
 
 /* ================================================================
    INTRO SCREEN SETUP
@@ -1832,7 +1953,7 @@ function buildIntroBoard() {
 // --- Start button: show auth screen if not logged in, else go to game ---
 document.getElementById('startBtn').addEventListener('click', function () {
   SoundSystem.init();
-  SoundSystem.playClick();
+  initFirebase();
   var user = getCurrentUser();
   if (user) {
     // Already logged in, go straight to game
@@ -1847,14 +1968,14 @@ document.getElementById('startBtn').addEventListener('click', function () {
 // --- Leaderboard button on intro screen ---
 document.getElementById('introLeaderboardBtn').addEventListener('click', function () {
   SoundSystem.init();
-  SoundSystem.playClick();
+  initFirebase();
   renderLeaderboard();
   showScreen('leaderboardScreen');
 });
 
 // --- Leaderboard button in game header ---
 document.getElementById('gameLeaderboardBtn').addEventListener('click', function () {
-  SoundSystem.playClick();
+  initFirebase();
   updateLeaderboardForCurrentUser();
   renderLeaderboard();
   showScreen('leaderboardScreen');
@@ -1863,22 +1984,19 @@ document.getElementById('gameLeaderboardBtn').addEventListener('click', function
 // --- Auth screen: toggle signup/login forms ---
 document.getElementById('showLogin').addEventListener('click', function (e) {
   e.preventDefault();
-  SoundSystem.playClick();
   showAuthLogin();
 });
 
 document.getElementById('showSignup').addEventListener('click', function (e) {
   e.preventDefault();
-  SoundSystem.playClick();
   showAuthSignup();
 });
 
 // --- Auth form submissions ---
-document.getElementById('signupBtn').addEventListener('click', function () { SoundSystem.playClick(); handleSignup(); });
-document.getElementById('loginBtn').addEventListener('click', function () { SoundSystem.playClick(); handleLogin(); });
-document.getElementById('guestBtn').addEventListener('click', function () { SoundSystem.init(); SoundSystem.playClick(); handleGuest(); });
+document.getElementById('signupBtn').addEventListener('click', function () { handleSignup(); });
+document.getElementById('loginBtn').addEventListener('click', function () { handleLogin(); });
+document.getElementById('guestBtn').addEventListener('click', function () { SoundSystem.init(); initFirebase(); handleGuest(); });
 document.getElementById('authBackBtn').addEventListener('click', function () {
-  SoundSystem.playClick();
   showScreen('introScreen');
 });
 
@@ -1893,7 +2011,6 @@ document.getElementById('loginPassword').addEventListener('keydown', function (e
 
 // --- Leaderboard screen buttons ---
 document.getElementById('lbBackBtn').addEventListener('click', function () {
-  SoundSystem.playClick();
   // Go back to whichever screen was previous
   var gameActive = document.getElementById('gameScreen').classList.contains('was-active');
   if (gameActive) {
@@ -1905,7 +2022,7 @@ document.getElementById('lbBackBtn').addEventListener('click', function () {
 
 document.getElementById('lbPlayBtn').addEventListener('click', function () {
   SoundSystem.init();
-  SoundSystem.playClick();
+  initFirebase();
   var user = getCurrentUser();
   if (user) {
     loadState();
@@ -1920,7 +2037,6 @@ document.getElementById('prevBtn').addEventListener('click', function () { Sound
 document.getElementById('nextBtn').addEventListener('click', function () { SoundSystem.playClick(); goToLevel(S.currentLevel + 1); });
 document.getElementById('resetBtn').addEventListener('click', function () { SoundSystem.playClick(); goToLevel(S.currentLevel); });
 document.getElementById('clearProgressBtn').addEventListener('click', function () {
-  SoundSystem.playClick();
   clearSave();
   showToast('All progress cleared', 'info');
   showScreen('introScreen');
@@ -1929,12 +2045,11 @@ document.getElementById('clearProgressBtn').addEventListener('click', function (
 // --- User menu dropdown ---
 document.getElementById('userMenuBtn').addEventListener('click', function (e) {
   e.stopPropagation();
-  SoundSystem.playClick();
   var dropdown = document.getElementById('userDropdown');
   dropdown.style.display = dropdown.style.display === 'none' ? 'block' : 'none';
 });
 
-document.getElementById('logoutBtn').addEventListener('click', function () { SoundSystem.playClick(); handleLogout(); });
+document.getElementById('logoutBtn').addEventListener('click', function () { handleLogout(); });
 
 // Close dropdown when clicking outside
 document.addEventListener('click', function (e) {
