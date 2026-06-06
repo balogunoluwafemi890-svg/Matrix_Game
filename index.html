@@ -7,9 +7,6 @@
   <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@700;900&family=DM+Sans:ital,wght@0,300;0,400;0,500;0,700;1,400&display=swap" rel="stylesheet">
   <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css" rel="stylesheet">
   <link rel="stylesheet" href="styles.css">
-  <!-- Firebase SDK (compat) -->
-  <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
-  <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
 </head>
 <body>
 
@@ -30,12 +27,14 @@
           Master matrices step-by-step through an interactive checkerboard.
           Seven levels from coordinates to combat.
         </p>
-        <button id="startBtn" class="btn-primary btn-lg">
-          <i class="fa-solid fa-play mr-2"></i>Start Learning
-        </button>
-        <button id="introLeaderboardBtn" class="btn-ghost" style="margin-top:8px">
-          <i class="fa-solid fa-trophy mr-2" style="color:var(--accent)"></i>Leaderboard
-        </button>
+        <div class="intro-buttons">
+          <button id="startBtn" class="btn-primary btn-lg">
+            <i class="fa-solid fa-play mr-2"></i>Start Learning
+          </button>
+          <button id="introLeaderboardBtn" class="btn-ghost btn-lg" style="margin-top:12px">
+            <i class="fa-solid fa-trophy mr-2"></i>Leaderboard
+          </button>
+        </div>
         <div id="loggedInAs" class="logged-in-badge" style="display:none">
           <i class="fa-solid fa-user"></i> <span id="loggedInName"></span>
         </div>
@@ -50,7 +49,7 @@
             <span class="font-display text-2xl font-bold" style="color:var(--accent)">MC</span>
           </div>
           <h2 class="font-display text-3xl font-bold" id="authTitle">Sign Up</h2>
-          <p class="auth-subtitle" id="authSubtitle">Create an account to track your progress</p>
+          <p class="auth-subtitle" id="authSubtitle">Create an account to track your progress and compete on the leaderboard</p>
 
           <div id="signupForm">
             <div class="auth-field">
@@ -100,6 +99,49 @@
       </div>
     </div>
 
+    <!-- LEADERBOARD SCREEN -->
+    <div id="leaderboardScreen" class="screen">
+      <div class="leaderboard-screen">
+        <div class="leaderboard-card">
+          <div class="leaderboard-header">
+            <div class="leaderboard-title-row">
+              <button id="lbBackBtn" class="btn-ghost" style="padding:8px">
+                <i class="fa-solid fa-arrow-left"></i>
+              </button>
+              <h2 class="font-display text-3xl font-bold" style="color:var(--accent)">
+                <i class="fa-solid fa-trophy" style="margin-right:8px"></i>Leaderboard
+              </h2>
+              <div style="width:40px"></div>
+            </div>
+            <p class="leaderboard-subtitle">Top 20 players ranked by score</p>
+          </div>
+          <div class="leaderboard-table-wrap">
+            <table class="leaderboard-table" id="leaderboardTable">
+              <thead>
+                <tr>
+                  <th class="lb-rank">Rank</th>
+                  <th class="lb-player">Player</th>
+                  <th class="lb-score">Score</th>
+                  <th class="lb-levels">Levels</th>
+                </tr>
+              </thead>
+              <tbody id="leaderboardBody">
+              </tbody>
+            </table>
+          </div>
+          <div id="lbEmpty" class="lb-empty" style="display:none">
+            <i class="fa-solid fa-chart-simple" style="font-size:48px;color:var(--muted);margin-bottom:16px"></i>
+            <p style="color:var(--muted)">No scores yet. Be the first to play!</p>
+          </div>
+          <div class="leaderboard-footer">
+            <button id="lbPlayBtn" class="btn-primary btn-lg">
+              <i class="fa-solid fa-play mr-2"></i>Play Now
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+
     <!-- GAME SCREEN -->
     <div id="gameScreen" class="screen">
       <div class="game-layout">
@@ -112,8 +154,11 @@
           <div class="header-center" id="progressDots"></div>
           <div class="header-right">
             <span class="text-sm font-bold" style="color:var(--accent)" id="scoreDisplay">0 pts</span>
-            <button class="header-icon-btn" id="headerLeaderboardBtn" title="Leaderboard">
+            <button id="gameLeaderboardBtn" class="header-icon-btn" title="Leaderboard">
               <i class="fa-solid fa-trophy"></i>
+            </button>
+            <button id="soundToggleBtn" class="header-icon-btn" title="Sound on">
+              <i class="fa-solid fa-volume-high"></i>
             </button>
             <div class="header-user-menu" id="headerUserMenu">
               <button class="header-icon-btn" id="userMenuBtn" title="User menu">
@@ -174,40 +219,6 @@
           </button>
         </footer>
 
-      </div>
-    </div>
-
-    <!-- LEADERBOARD SCREEN -->
-    <div id="leaderboardScreen" class="screen">
-      <div class="leaderboard-screen">
-        <div class="leaderboard-card">
-          <div class="leaderboard-header">
-            <i class="fa-solid fa-trophy" style="color:var(--accent);font-size:28px"></i>
-            <h2 class="font-display text-2xl font-bold" style="text-align:center">Leaderboard</h2>
-            <p class="leaderboard-subtitle">Top 20 players worldwide</p>
-          </div>
-          <div id="leaderboardLoading" class="leaderboard-loading">
-            <i class="fa-solid fa-spinner fa-spin"></i> Loading...
-          </div>
-          <div id="leaderboardEmpty" class="leaderboard-empty" style="display:none">
-            <i class="fa-solid fa-users-slash" style="font-size:32px;color:var(--muted);margin-bottom:12px"></i>
-            <p>No players yet. Be the first!</p>
-          </div>
-          <table class="leaderboard-table" id="leaderboardTable" style="display:none">
-            <thead>
-              <tr>
-                <th class="lb-rank">#</th>
-                <th class="lb-player">Player</th>
-                <th class="lb-score">Score</th>
-                <th class="lb-levels">Levels</th>
-              </tr>
-            </thead>
-            <tbody id="leaderboardBody"></tbody>
-          </table>
-          <button id="leaderboardBackBtn" class="btn-ghost" style="margin-top:20px;justify-content:center;width:100%">
-            <i class="fa-solid fa-arrow-left mr-1"></i>Back
-          </button>
-        </div>
       </div>
     </div>
 
