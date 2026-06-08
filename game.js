@@ -184,7 +184,7 @@ var SESSION_KEY = 'matrix_checkers_session';
 
 /** Persist current progress to localStorage. */
 function saveState() {
-  var data = { currentLevel: S.currentLevel, score: S.score, completed: S.completed, version: SAVE_VERSION };
+  var data = { currentLevel: S.currentLevel, score: S.score, completed: S.completed, wrongAttempts: S.wrongAttempts, version: SAVE_VERSION };
   try { localStorage.setItem(SAVE_KEY, JSON.stringify(data)); } catch (e) { /* storage full or disabled */ }
   // Also update leaderboard for current user
   updateLeaderboardForCurrentUser();
@@ -200,6 +200,7 @@ function loadState() {
     S.currentLevel = data.currentLevel || 0;
     S.score = data.score || 0;
     S.completed = data.completed || {};
+    S.wrongAttempts = data.wrongAttempts || 0;
     return true;
   } catch (e) { return false; }
 }
@@ -210,6 +211,7 @@ function clearSave() {
   S.currentLevel = 0;
   S.score = 0;
   S.completed = {};
+  S.wrongAttempts = 0;
 }
 
 
@@ -217,7 +219,7 @@ function clearSave() {
    STATE & CONSTANTS
    ---------------------------------------------------------------- */
 
-var S = { currentLevel: 0, score: 0, completed: {}, levelData: {} };
+var S = { currentLevel: 0, score: 0, completed: {}, levelData: {}, wrongAttempts: 0 };
 
 var LEVELS = [
   { title: 'Grid Coordinates',      icon: 'fa-crosshairs' },
@@ -226,11 +228,12 @@ var LEVELS = [
   { title: 'Scalar Multiplication', icon: 'fa-xmark' },
   { title: 'Matrix Multiplication', icon: 'fa-layer-group' },
   { title: 'Determinant',           icon: 'fa-divide' },
-  { title: 'Checker Battle',        icon: 'fa-chess' }
+  { title: 'Checker Battle',        icon: 'fa-chess' },
+  { title: 'Challenge Mode',        icon: 'fa-bolt' }
 ];
 
 var isMobile = window.innerWidth < 768;
-var ORDINALS = ['1st', '2nd', '3rd', '4th', '5th', '6th', '7th'];
+var ORDINALS = ['1st', '2nd', '3rd', '4th', '5th', '6th', '7th', '8th'];
 
 
 /* ----------------------------------------------------------------
@@ -551,8 +554,14 @@ function completeLevel() {
 
 function goToLevel(n) {
   if (n < 0 || n >= LEVELS.length) return;
+  // Stop challenge timer if leaving Level 8
+  if (S.levelData && S.levelData.timerInterval) {
+    clearInterval(S.levelData.timerInterval);
+    S.levelData.timerInterval = null;
+  }
   S.currentLevel = n;
   S.levelData = {};
+  S.wrongAttempts = 0; // Reset penalty counter for new level
   showScreen('gameScreen');
   SoundSystem.init();
   SoundSystem.startBgMusic();
@@ -565,8 +574,8 @@ function goToLevel(n) {
   updateSoundBtnIcon();
 }
 
-function initLevel(n)  { [initL1,initL2,initL3,initL4,initL5,initL6,initL7][n](); }
-function renderLevel(n) { [renderL1,renderL2,renderL3,renderL4,renderL5,renderL6,renderL7][n](); }
+function initLevel(n)  { [initL1,initL2,initL3,initL4,initL5,initL6,initL7,initL8][n](); }
+function renderLevel(n) { [renderL1,renderL2,renderL3,renderL4,renderL5,renderL6,renderL7,renderL8][n](); }
 
 
 /* ----------------------------------------------------------------
@@ -611,6 +620,30 @@ function fillBoardNumbers(board, matrix, rows, cols) {
 function clearHighlights(board) {
   var cells = board.querySelectorAll('.cell-highlight');
   for (var i = 0; i < cells.length; i++) cells[i].classList.remove('cell-highlight');
+}
+
+/** Handle a wrong answer — applies penalty after 3 wrong attempts in a level.
+ *  Each wrong answer from the 3rd onward deducts 5 points. */
+function handleWrongAnswer() {
+  S.wrongAttempts++;
+  if (S.wrongAttempts >= 3) {
+    S.score = Math.max(0, S.score - 5);
+    updateHeader();
+    // Show floating "-5" text centered in the board area
+    var area = document.getElementById('boardArea');
+    var floater = document.createElement('div');
+    floater.className = 'float-text';
+    floater.textContent = '-5';
+    floater.style.color = 'var(--accent2)';
+    floater.style.left = '50%';
+    floater.style.top = '40%';
+    floater.style.transform = 'translateX(-50%)';
+    floater.style.fontSize = '24px';
+    floater.style.zIndex = '20';
+    area.appendChild(floater);
+    setTimeout(function () { if (floater.parentNode) floater.parentNode.removeChild(floater); }, 1000);
+    showToast('Penalty: -5 pts (' + S.wrongAttempts + ' wrong in this level)', 'error');
+  }
 }
 
 
@@ -770,6 +803,7 @@ function handleL1Click(r, c, cell) {
   } else {
     cell.classList.add('cell-wrong');
     SoundSystem.playWrong();
+    handleWrongAnswer();
     setTimeout(function () { cell.classList.remove('cell-wrong'); }, 400);
     showToast('Not quite \u2014 check the row and column numbers', 'error');
   }
@@ -844,6 +878,7 @@ function handleL2Submit() {
     else setTimeout(renderL2, 500);
   } else {
     SoundSystem.playWrong();
+    handleWrongAnswer();
     showToast('Wrong \u2014 count again carefully', 'error');
     document.getElementById('dimRows').value = '';
     document.getElementById('dimCols').value = '';
@@ -935,7 +970,7 @@ function handleL3Answer(v, correct, cell, btn) {
     d.optionsDiv.innerHTML = '';
     if (d.filled >= d.total) setTimeout(completeLevel, 600);
   } else {
-    btn.classList.add('wrong'); SoundSystem.playWrong(); showToast('Not the right sum \u2014 try again', 'error');
+    btn.classList.add('wrong'); SoundSystem.playWrong(); handleWrongAnswer(); showToast('Not the right sum \u2014 try again', 'error');
     setTimeout(function () { enableOptions(d.optionsDiv); }, 600);
   }
 }
@@ -1011,7 +1046,7 @@ function handleL4Answer(v, correct, cell, btn) {
     d.optionsDiv.innerHTML = '';
     if (d.filled >= d.total) setTimeout(completeLevel, 600);
   } else {
-    btn.classList.add('wrong'); SoundSystem.playWrong(); showToast('Wrong product \u2014 try again', 'error');
+    btn.classList.add('wrong'); SoundSystem.playWrong(); handleWrongAnswer(); showToast('Wrong product \u2014 try again', 'error');
     setTimeout(function () { enableOptions(d.optionsDiv); }, 600);
   }
 }
@@ -1114,7 +1149,7 @@ function handleL5Answer(v, correct, btn) {
     if (d.step >= 4) setTimeout(completeLevel, 600);
     else setTimeout(renderL5Step, 700);
   } else {
-    btn.classList.add('wrong'); SoundSystem.playWrong(); showToast('Wrong sum \u2014 add the products carefully', 'error');
+    btn.classList.add('wrong'); SoundSystem.playWrong(); handleWrongAnswer(); showToast('Wrong sum \u2014 add the products carefully', 'error');
     setTimeout(function () { enableOptions(d.optionsDiv); }, 600);
   }
 }
@@ -1261,7 +1296,7 @@ function handleL6Answer(v, correct, btn) {
       else setTimeout(renderL6Step, 1600);
     }
   } else {
-    btn.classList.add('wrong'); SoundSystem.playWrong(); showToast('Wrong \u2014 try again', 'error');
+    btn.classList.add('wrong'); SoundSystem.playWrong(); handleWrongAnswer(); showToast('Wrong \u2014 try again', 'error');
     setTimeout(function () { enableOptions(d.optionsDiv); }, 600);
   }
 }
@@ -1446,6 +1481,7 @@ function handleL7Click(r, c) {
     renderL7Board(); return;
   }
   SoundSystem.playWrong();
+  handleWrongAnswer();
   d.selected = null; d.validMoves = [];
   setHint('Click one of your teal pieces to see where it can move.');
   renderL7Board();
@@ -1643,6 +1679,7 @@ function handleLogout() {
   S.score = 0;
   S.completed = {};
   S.levelData = {};
+  S.wrongAttempts = 0;
   updateLoginUI();
   showScreen('introScreen');
   showToast('Logged out successfully', 'info');
@@ -1915,11 +1952,357 @@ function displayLeaderboard(lb, user, tbody, emptyMsg, tableWrap) {
     // Levels cell
     var levelsTd = document.createElement('td');
     levelsTd.className = 'lb-levels';
-    levelsTd.textContent = entry.levelsCompleted + '/7';
+    levelsTd.textContent = entry.levelsCompleted + '/8';
     tr.appendChild(levelsTd);
 
     tbody.appendChild(tr);
   }
+}
+
+
+/* ================================================================
+   LEVEL 8: CHALLENGE MODE — 10 random questions, 5-min timer
+   ================================================================ */
+
+var CHALLENGE_TIME = 300; // 5 minutes in seconds
+var CHALLENGE_QUESTIONS = 10;
+
+/** Generate a random question object for a given level type (0-6). */
+function generateChallengeQuestion(levelType) {
+  var q = { levelType: levelType, correct: null, options: [], html: '', taskHtml: '' };
+
+  if (levelType === 0) {
+    // L1: Grid Coordinates — ask for coordinates of a position
+    var r = rand(0, 3), c = rand(0, 3);
+    q.correct = r + ',' + c;
+    q.taskHtml = 'What are the coordinates (row, column) of the cell at the <b style="color:var(--accent)">' + ORDINALS[r] + ' row</b> and <b style="color:var(--accent)">' + ORDINALS[c] + ' column</b>?';
+    // Generate coordinate options
+    var opts = [q.correct];
+    var tries = 0;
+    while (opts.length < 4 && tries < 60) {
+      tries++;
+      var nr = rand(0, 3), nc = rand(0, 3);
+      var key = nr + ',' + nc;
+      if (opts.indexOf(key) === -1) opts.push(key);
+    }
+    q.options = shuffle(opts);
+  }
+
+  else if (levelType === 1) {
+    // L2: Matrix Dimensions — ask for rows x cols
+    var rows = rand(2, 5), cols = rand(2, 5);
+    q.correct = rows + ' \u00d7 ' + cols;
+    q.taskHtml = 'A matrix has <b style="color:var(--accent)">' + rows + ' rows</b> and <b style="color:var(--accent)">' + cols + ' columns</b>. What are its dimensions?';
+    var opts = [q.correct];
+    var tries = 0;
+    while (opts.length < 4 && tries < 60) {
+      tries++;
+      var fr = rand(2, 5), fc = rand(2, 5);
+      var key = fr + ' \u00d7 ' + fc;
+      if (opts.indexOf(key) === -1) opts.push(key);
+    }
+    q.options = shuffle(opts);
+  }
+
+  else if (levelType === 2) {
+    // L3: Matrix Addition — add two elements
+    var a = rand(1, 9), b = rand(1, 9);
+    var sum = a + b;
+    q.correct = sum;
+    q.taskHtml = 'In matrix addition, what is <b style="color:var(--accent)">' + a + '</b> + <b style="color:var(--accent)">' + b + '</b>?';
+    q.options = generateOptions(sum, 5);
+  }
+
+  else if (levelType === 3) {
+    // L4: Scalar Multiplication — multiply element by scalar
+    var k = rand(2, 5), val = rand(1, 7);
+    var product = k * val;
+    q.correct = product;
+    q.taskHtml = 'In scalar multiplication, what is <b style="color:var(--accent)">' + k + '</b> \u00d7 <b style="color:var(--accent)">' + val + '</b>?';
+    q.options = generateOptions(product, k * 2);
+  }
+
+  else if (levelType === 4) {
+    // L5: Matrix Multiplication — dot product of row and column
+    var rowLen = rand(2, 3);
+    var row = [], col = [];
+    for (var i = 0; i < rowLen; i++) { row.push(rand(1, 5)); col.push(rand(1, 5)); }
+    var dotProduct = 0;
+    for (var i = 0; i < rowLen; i++) dotProduct += row[i] * col[i];
+    q.correct = dotProduct;
+    var rowStr = row.join(', ');
+    var colStr = col.join(', ');
+    q.taskHtml = 'Compute the dot product: <b style="color:var(--accent)">[' + rowStr + ']</b> \u00b7 <b style="color:var(--accent)">[' + colStr + ']</b>';
+    q.options = generateOptions(dotProduct, 8);
+  }
+
+  else if (levelType === 5) {
+    // L6: Determinant of a 2x2 matrix
+    var a = rand(1, 6), b = rand(1, 6), c = rand(1, 6), d = rand(1, 6);
+    var det = a * d - b * c;
+    q.correct = det;
+    q.taskHtml = 'Find the determinant of: <b style="color:var(--accent)">|' + a + '  ' + b + '|</b><br><b style="color:var(--accent);margin-left:28px">|' + c + '  ' + d + '|</b>';
+    q.options = generateSignedOptions(det, 6);
+  }
+
+  else if (levelType === 6) {
+    // L7: Checker Battle — capture scenario
+    var yourVal = rand(2, 5), enemyVal = rand(1, 4);
+    var newVal = yourVal + enemyVal;
+    q.correct = newVal;
+    q.taskHtml = 'Your piece (value <b style="color:var(--piece-teal)">' + yourVal + '</b>) captures an enemy (value <b style="color:var(--piece-red)">' + enemyVal + '</b>). What is your new value?';
+    q.options = generateOptions(newVal, 4);
+  }
+
+  return q;
+}
+
+/** Generate 10 random challenge questions — at least 1 from each level. */
+function generateChallengeQuestions() {
+  var questions = [];
+
+  // Guarantee one question from each of the 7 levels
+  for (var lvl = 0; lvl < 7; lvl++) {
+    questions.push(generateChallengeQuestion(lvl));
+  }
+
+  // Fill remaining 3 with random level types
+  while (questions.length < CHALLENGE_QUESTIONS) {
+    var lvl = rand(0, 6);
+    questions.push(generateChallengeQuestion(lvl));
+  }
+
+  // Shuffle the questions
+  return shuffle(questions);
+}
+
+function initL8() {
+  var d = S.levelData;
+  d.questions = generateChallengeQuestions();
+  d.qIdx = 0;
+  d.correct = 0;
+  d.wrong = 0;
+  d.timeLeft = CHALLENGE_TIME;
+  d.timerInterval = null;
+  d.finished = false;
+  d.results = []; // 'correct' or 'wrong' per question
+}
+
+function renderL8() {
+  var d = S.levelData;
+  document.getElementById('levelBadge').textContent = '8';
+  document.getElementById('levelTitle').textContent = LEVELS[7].title;
+  document.getElementById('levelDesc').textContent = 'Test your overall understanding! Answer 10 random questions from all levels within 5 minutes. Each correct answer earns 10 points. After 3 wrong answers, each mistake costs 5 points.';
+  document.getElementById('learnBox').style.display = 'block';
+  document.getElementById('learnContent').innerHTML =
+    '<div style="color:var(--text);font-weight:700;margin-bottom:4px">Challenge Rules:</div>' +
+    '<i class="fa-solid fa-clock" style="color:var(--accent);font-size:10px"></i> <b style="color:var(--text)">5 minutes</b> to answer 10 questions<br>' +
+    '<i class="fa-solid fa-check" style="color:var(--success);font-size:10px"></i> <b style="color:var(--text)">+10 pts</b> per correct answer<br>' +
+    '<i class="fa-solid fa-xmark" style="color:var(--accent2);font-size:10px"></i> <b style="color:var(--text)">-5 pts</b> per wrong answer after 3 misses<br>' +
+    '<i class="fa-solid fa-shuffle" style="color:var(--accent);font-size:10px"></i> Questions from <b style="color:var(--text)">all 7 levels</b>';
+
+  renderChallengeQuestion();
+  startChallengeTimer();
+}
+
+function renderChallengeQuestion() {
+  var d = S.levelData;
+  var area = document.getElementById('boardArea');
+  area.innerHTML = '';
+
+  if (d.finished || d.qIdx >= d.questions.length) {
+    finishChallenge();
+    return;
+  }
+
+  var q = d.questions[d.qIdx];
+
+  // Timer
+  var timerDiv = document.createElement('div');
+  timerDiv.className = 'challenge-timer';
+  timerDiv.id = 'challengeTimer';
+  timerDiv.innerHTML = '<i class="fa-solid fa-clock"></i><span class="timer-value" id="timerValue">' + formatTime(d.timeLeft) + '</span><span style="color:var(--muted);font-size:13px">remaining</span>';
+  area.appendChild(timerDiv);
+
+  // Progress dots
+  var progressDiv = document.createElement('div');
+  progressDiv.className = 'challenge-progress';
+  for (var i = 0; i < d.questions.length; i++) {
+    var dot = document.createElement('div');
+    dot.className = 'challenge-dot';
+    if (d.results[i] === 'correct') dot.classList.add('done');
+    else if (d.results[i] === 'wrong') dot.classList.add('wrong-dot');
+    else if (i === d.qIdx) dot.classList.add('current');
+    progressDiv.appendChild(dot);
+  }
+  area.appendChild(progressDiv);
+
+  // Level source label
+  var levelNames = ['Coordinates', 'Dimensions', 'Addition', 'Scalar', 'Multiplication', 'Determinant', 'Battle'];
+  var label = document.createElement('div');
+  label.className = 'challenge-question-label';
+  label.innerHTML = '<i class="fa-solid ' + LEVELS[q.levelType].icon + '"></i> Level ' + (q.levelType + 1) + ': ' + levelNames[q.levelType];
+  area.appendChild(label);
+
+  // Question number
+  var qNum = document.createElement('div');
+  qNum.style.cssText = 'font-size:14px;font-weight:600;color:var(--muted);margin-bottom:8px;text-align:center';
+  qNum.textContent = 'Question ' + (d.qIdx + 1) + ' of ' + d.questions.length;
+  area.appendChild(qNum);
+
+  // Task text
+  var taskDiv = document.createElement('div');
+  taskDiv.style.cssText = 'font-size:16px;font-weight:600;text-align:center;margin-bottom:20px;line-height:1.6';
+  taskDiv.innerHTML = q.taskHtml;
+  area.appendChild(taskDiv);
+
+  // Options
+  var optionsDiv = document.createElement('div');
+  optionsDiv.className = 'options-grid';
+  optionsDiv.style.cssText = 'max-width:320px;margin:0 auto';
+  d.optionsDiv = optionsDiv;
+
+  for (var i = 0; i < q.options.length; i++) {
+    var btn = document.createElement('button');
+    btn.className = 'option-btn';
+    btn.textContent = q.options[i];
+    (function (val, b) {
+      b.addEventListener('click', function () {
+        SoundSystem.playTap();
+        handleChallengeAnswer(val, b);
+      });
+    })(q.options[i], btn);
+    optionsDiv.appendChild(btn);
+  }
+  area.appendChild(optionsDiv);
+}
+
+function handleChallengeAnswer(value, btn) {
+  var d = S.levelData;
+  if (d.finished) return;
+
+  var q = d.questions[d.qIdx];
+  var isCorrect = (String(value) === String(q.correct));
+
+  // Disable all options
+  var allBtns = d.optionsDiv.querySelectorAll('.option-btn');
+  for (var i = 0; i < allBtns.length; i++) allBtns[i].style.pointerEvents = 'none';
+
+  if (isCorrect) {
+    btn.classList.add('correct');
+    SoundSystem.playCorrect();
+    S.score += 10;
+    d.correct++;
+    d.results.push('correct');
+    updateHeader();
+  } else {
+    btn.classList.add('wrong');
+    SoundSystem.playWrong();
+    handleWrongAnswer();
+    d.wrong++;
+    d.results.push('wrong');
+    // Highlight correct answer
+    for (var i = 0; i < allBtns.length; i++) {
+      if (String(allBtns[i].textContent) === String(q.correct)) {
+        allBtns[i].classList.add('correct');
+      }
+    }
+  }
+
+  // Move to next question after delay
+  d.qIdx++;
+  setTimeout(function () {
+    if (d.qIdx >= d.questions.length) {
+      finishChallenge();
+    } else {
+      renderChallengeQuestion();
+    }
+  }, 800);
+}
+
+function startChallengeTimer() {
+  var d = S.levelData;
+  if (d.timerInterval) clearInterval(d.timerInterval);
+
+  d.timerInterval = setInterval(function () {
+    if (d.finished) {
+      clearInterval(d.timerInterval);
+      return;
+    }
+    d.timeLeft--;
+
+    var timerEl = document.getElementById('timerValue');
+    if (timerEl) {
+      timerEl.textContent = formatTime(d.timeLeft);
+      // Visual warnings
+      timerEl.classList.remove('timer-warning', 'timer-critical');
+      if (d.timeLeft <= 30) timerEl.classList.add('timer-critical');
+      else if (d.timeLeft <= 60) timerEl.classList.add('timer-warning');
+    }
+
+    if (d.timeLeft <= 0) {
+      clearInterval(d.timerInterval);
+      d.finished = true;
+      // Mark remaining questions as wrong
+      while (d.results.length < d.questions.length) {
+        d.results.push('wrong');
+        d.wrong++;
+      }
+      showToast('Time is up!', 'error');
+      finishChallenge();
+    }
+  }, 1000);
+}
+
+function formatTime(seconds) {
+  var m = Math.floor(seconds / 60);
+  var s = seconds % 60;
+  return m + ':' + (s < 10 ? '0' : '') + s;
+}
+
+function finishChallenge() {
+  var d = S.levelData;
+  d.finished = true;
+  if (d.timerInterval) clearInterval(d.timerInterval);
+
+  var area = document.getElementById('boardArea');
+  area.innerHTML = '';
+
+  // Update task
+  document.getElementById('taskText').innerHTML = '<span style="color:var(--success);font-weight:700">Challenge Complete!</span>';
+
+  // Results card
+  var resultsDiv = document.createElement('div');
+  resultsDiv.className = 'challenge-results';
+
+  var pct = Math.round((d.correct / d.questions.length) * 100);
+  var grade = pct >= 90 ? 'Excellent!' : pct >= 70 ? 'Good Job!' : pct >= 50 ? 'Keep Practicing!' : 'Try Again!';
+
+  resultsDiv.innerHTML =
+    '<div style="font-size:18px;font-weight:800;margin-bottom:4px">' + grade + '</div>' +
+    '<div class="results-score">' + d.correct + '/' + d.questions.length + '</div>' +
+    '<div class="results-label">questions answered correctly</div>' +
+    '<div class="results-detail" style="color:var(--success)"><i class="fa-solid fa-check" style="margin-right:6px"></i>' + d.correct + ' correct</div>' +
+    '<div class="results-detail" style="color:var(--accent2)"><i class="fa-solid fa-xmark" style="margin-right:6px"></i>' + d.wrong + ' wrong</div>' +
+    '<div class="results-detail" style="color:var(--accent)"><i class="fa-solid fa-percent" style="margin-right:6px"></i>' + pct + '% score</div>' +
+    '<div style="margin-top:16px"><button class="btn-primary btn-lg" id="challengeRetryBtn"><i class="fa-solid fa-rotate-right mr-2"></i>Try Again</button></div>';
+
+  area.appendChild(resultsDiv);
+
+  celebrate();
+  SoundSystem.playCelebration();
+  completeLevel();
+
+  // Wire retry button
+  setTimeout(function () {
+    var retryBtn = document.getElementById('challengeRetryBtn');
+    if (retryBtn) {
+      retryBtn.addEventListener('click', function () {
+        initL8();
+        renderL8();
+      });
+    }
+  }, 50);
 }
 
 
