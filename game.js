@@ -1966,33 +1966,38 @@ function displayLeaderboard(lb, user, tbody, emptyMsg, tableWrap) {
 
 var CHALLENGE_TIME = 120; // 2 minutes in seconds
 var CHALLENGE_QUESTIONS = 5;
+var CHALLENGE_CELL = isMobile ? 38 : 44; // compact cell size for challenge visuals
 
-/** Generate a random question object for a given level type (0-5 only). */
+/** Generate a random question with visual data for a given level type (0-5). */
 function generateChallengeQuestion(levelType) {
-  var q = { levelType: levelType, correct: null, options: [], html: '', taskHtml: '' };
+  var q = { levelType: levelType, correct: null, options: [], taskHtml: '', visualData: null };
 
   if (levelType === 0) {
-    // L1: Grid Coordinates — ask for coordinates of a position
+    // L1: Grid Coordinates — show a 4x4 board, ask for coordinates of a highlighted piece
     var r = rand(0, 3), c = rand(0, 3);
-    q.correct = r + ',' + c;
-    q.taskHtml = 'What are the coordinates (row, column) of the cell at the <b style="color:var(--accent)">' + ORDINALS[r] + ' row</b> and <b style="color:var(--accent)">' + ORDINALS[c] + ' column</b>?';
-    // Generate coordinate options
+    if ((r + c) % 2 === 0) c = (c + 1) % 4; // ensure piece on dark square
+    q.correct = '(' + r + ', ' + c + ')';
+    q.taskHtml = 'What are the coordinates (row, col) of the <b style="color:var(--success)">green piece</b>?';
+    q.visualData = { type: 'coordinates', targetR: r, targetC: c };
     var opts = [q.correct];
     var tries = 0;
     while (opts.length < 4 && tries < 60) {
       tries++;
       var nr = rand(0, 3), nc = rand(0, 3);
-      var key = nr + ',' + nc;
+      if ((nr + nc) % 2 === 0) continue;
+      var key = '(' + nr + ', ' + nc + ')';
       if (opts.indexOf(key) === -1) opts.push(key);
     }
     q.options = shuffle(opts);
   }
 
   else if (levelType === 1) {
-    // L2: Matrix Dimensions — ask for rows x cols
+    // L2: Matrix Dimensions — show a matrix, ask for its dimensions
     var rows = rand(2, 5), cols = rand(2, 5);
+    var mat = genMat(rows, cols, 1, 9);
     q.correct = rows + ' \u00d7 ' + cols;
-    q.taskHtml = 'A matrix has <b style="color:var(--accent)">' + rows + ' rows</b> and <b style="color:var(--accent)">' + cols + ' columns</b>. What are its dimensions?';
+    q.taskHtml = 'What are the dimensions of this matrix?';
+    q.visualData = { type: 'dimensions', rows: rows, cols: cols, matrix: mat };
     var opts = [q.correct];
     var tries = 0;
     while (opts.length < 4 && tries < 60) {
@@ -2005,66 +2010,189 @@ function generateChallengeQuestion(levelType) {
   }
 
   else if (levelType === 2) {
-    // L3: Matrix Addition — add two elements
-    var a = rand(1, 9), b = rand(1, 9);
-    var sum = a + b;
+    // L3: Matrix Addition — show two matrices A + B, ask for a specific cell sum
+    var size = rand(2, 3);
+    var A = genMat(size, size, 1, 5);
+    var B = genMat(size, size, 1, 5);
+    var tr = rand(0, size - 1), tc = rand(0, size - 1);
+    var sum = A[tr][tc] + B[tr][tc];
     q.correct = sum;
-    q.taskHtml = 'In matrix addition, what is <b style="color:var(--accent)">' + a + '</b> + <b style="color:var(--accent)">' + b + '</b>?';
-    q.options = generateOptions(sum, 5);
+    q.taskHtml = 'In the addition below, what is the value at <b style="color:var(--accent)">row ' + tr + ', col ' + tc + '</b> (highlighted cells)?';
+    q.visualData = { type: 'addition', A: A, B: B, size: size, targetR: tr, targetC: tc };
+    q.options = generateOptions(sum, 4);
   }
 
   else if (levelType === 3) {
-    // L4: Scalar Multiplication — multiply element by scalar
-    var k = rand(2, 5), val = rand(1, 7);
-    var product = k * val;
+    // L4: Scalar Multiplication — show matrix x scalar, ask for a specific cell product
+    var size = rand(2, 3);
+    var k = rand(2, 4);
+    var mat = genMat(size, size, 1, 5);
+    var tr = rand(0, size - 1), tc = rand(0, size - 1);
+    var product = k * mat[tr][tc];
     q.correct = product;
-    q.taskHtml = 'In scalar multiplication, what is <b style="color:var(--accent)">' + k + '</b> \u00d7 <b style="color:var(--accent)">' + val + '</b>?';
+    q.taskHtml = 'Multiply the matrix by <b style="color:var(--accent)">' + k + '</b>. What is the value at <b style="color:var(--accent)">row ' + tr + ', col ' + tc + '</b> (highlighted cell)?';
+    q.visualData = { type: 'scalar', matrix: mat, scalar: k, size: size, targetR: tr, targetC: tc };
     q.options = generateOptions(product, k * 2);
   }
 
   else if (levelType === 4) {
-    // L5: Matrix Multiplication — dot product of row and column
-    var rowLen = rand(2, 3);
+    // L5: Matrix Multiplication — show row and column vectors, ask for dot product
+    var len = rand(2, 3);
     var row = [], col = [];
-    for (var i = 0; i < rowLen; i++) { row.push(rand(1, 5)); col.push(rand(1, 5)); }
-    var dotProduct = 0;
-    for (var i = 0; i < rowLen; i++) dotProduct += row[i] * col[i];
-    q.correct = dotProduct;
-    var rowStr = row.join(', ');
-    var colStr = col.join(', ');
-    q.taskHtml = 'Compute the dot product: <b style="color:var(--accent)">[' + rowStr + ']</b> \u00b7 <b style="color:var(--accent)">[' + colStr + ']</b>';
-    q.options = generateOptions(dotProduct, 8);
+    for (var i = 0; i < len; i++) { row.push(rand(1, 5)); col.push(rand(1, 5)); }
+    var dot = 0;
+    for (var i = 0; i < len; i++) dot += row[i] * col[i];
+    q.correct = dot;
+    q.taskHtml = 'Compute the dot product of the row and column shown below:';
+    q.visualData = { type: 'dotproduct', row: row, col: col };
+    q.options = generateOptions(dot, 8);
   }
 
   else if (levelType === 5) {
-    // L6: Determinant of a 2x2 matrix
+    // L6: Determinant — show a 2x2 matrix, ask for determinant
     var a = rand(1, 6), b = rand(1, 6), c = rand(1, 6), d = rand(1, 6);
     var det = a * d - b * c;
     q.correct = det;
-    q.taskHtml = 'Find the determinant of: <b style="color:var(--accent)">|' + a + '  ' + b + '|</b><br><b style="color:var(--accent);margin-left:28px">|' + c + '  ' + d + '|</b>';
+    q.taskHtml = 'Find the determinant of the 2\u00d72 matrix below:';
+    q.visualData = { type: 'determinant', a: a, b: b, c: c, d: d };
     q.options = generateSignedOptions(det, 6);
   }
 
-
-
   return q;
+}
+
+/** Render the visual grid for a challenge question into the board area. */
+function renderChallengeVisual(area, q) {
+  var sz = CHALLENGE_CELL;
+  var vis = q.visualData;
+  var center = 'text-align:center;margin-bottom:12px';
+
+  if (vis.type === 'coordinates') {
+    // 4x4 board with row/col labels and a green piece
+    var wrap = document.createElement('div');
+    wrap.style.cssText = 'display:inline-block;position:relative;' + center;
+    var grid = makeBoard(4, 4, sz, wrap);
+    for (var r = 0; r < 4; r++) {
+      var lbl = document.createElement('div');
+      lbl.style.cssText = 'position:absolute;left:-18px;top:' + (r * sz + sz / 2 - 7) + 'px;font-size:11px;font-weight:700;color:var(--accent)';
+      lbl.textContent = r; wrap.appendChild(lbl);
+    }
+    for (var c = 0; c < 4; c++) {
+      var lbl = document.createElement('div');
+      lbl.style.cssText = 'position:absolute;top:-16px;left:' + (c * sz + sz / 2 - 4) + 'px;font-size:11px;font-weight:700;color:var(--accent)';
+      lbl.textContent = c; wrap.appendChild(lbl);
+    }
+    var pieceCell = getCell(grid, vis.targetR, vis.targetC);
+    pieceCell.innerHTML = '<div style="width:' + Math.round(sz * 0.55) + 'px;height:' + Math.round(sz * 0.55) + 'px;border-radius:50%;background:linear-gradient(135deg,#22c55e,#16a34a);box-shadow:0 0 8px rgba(34,197,94,0.5);margin:auto"></div>';
+    pieceCell.classList.add('cell-highlight');
+    area.appendChild(wrap);
+  }
+
+  else if (vis.type === 'dimensions') {
+    // Show the matrix filled with numbers
+    var wrap = document.createElement('div');
+    wrap.style.cssText = center;
+    var label = document.createElement('div');
+    label.style.cssText = 'font-size:14px;font-weight:800;color:var(--accent);margin-bottom:6px';
+    label.textContent = 'Matrix M';
+    wrap.appendChild(label);
+    var grid = makeBoard(vis.rows, vis.cols, sz, wrap);
+    fillBoardNumbers(grid, vis.matrix, vis.rows, vis.cols);
+    area.appendChild(wrap);
+  }
+
+  else if (vis.type === 'addition') {
+    // Show A + B with highlighted target cells
+    var topRow = document.createElement('div');
+    topRow.style.cssText = 'display:flex;align-items:flex-start;gap:10px;justify-content:center;flex-wrap:wrap;margin-bottom:12px';
+    var aW = document.createElement('div'); aW.style.textAlign = 'center';
+    aW.innerHTML = '<div style="font-weight:800;color:var(--accent);margin-bottom:4px;font-size:13px">A</div>';
+    var boardA = makeBoard(vis.size, vis.size, sz, aW);
+    fillBoardNumbers(boardA, vis.A, vis.size, vis.size);
+    getCell(boardA, vis.targetR, vis.targetC).classList.add('cell-highlight');
+    topRow.appendChild(aW);
+    var plus = document.createElement('div');
+    plus.style.cssText = 'font-size:24px;font-weight:900;color:var(--accent);margin-top:' + Math.round(vis.size * sz / 2) + 'px';
+    plus.textContent = '+';
+    topRow.appendChild(plus);
+    var bW = document.createElement('div'); bW.style.textAlign = 'center';
+    bW.innerHTML = '<div style="font-weight:800;color:var(--accent);margin-bottom:4px;font-size:13px">B</div>';
+    var boardB = makeBoard(vis.size, vis.size, sz, bW);
+    fillBoardNumbers(boardB, vis.B, vis.size, vis.size);
+    getCell(boardB, vis.targetR, vis.targetC).classList.add('cell-highlight');
+    topRow.appendChild(bW);
+    area.appendChild(topRow);
+  }
+
+  else if (vis.type === 'scalar') {
+    // Show matrix x scalar with highlighted target cell
+    var topRow = document.createElement('div');
+    topRow.style.cssText = 'display:flex;align-items:flex-start;gap:10px;justify-content:center;flex-wrap:wrap;margin-bottom:12px';
+    var mW = document.createElement('div'); mW.style.textAlign = 'center';
+    mW.innerHTML = '<div style="font-weight:800;color:var(--accent);margin-bottom:4px;font-size:13px">Matrix</div>';
+    var board = makeBoard(vis.size, vis.size, sz, mW);
+    fillBoardNumbers(board, vis.matrix, vis.size, vis.size);
+    getCell(board, vis.targetR, vis.targetC).classList.add('cell-highlight');
+    topRow.appendChild(mW);
+    var times = document.createElement('div');
+    times.style.cssText = 'font-size:24px;font-weight:900;color:var(--accent);margin-top:' + Math.round(vis.size * sz / 2) + 'px';
+    times.textContent = '\u00d7';
+    topRow.appendChild(times);
+    var kDiv = document.createElement('div');
+    kDiv.style.cssText = 'font-size:28px;font-weight:900;color:var(--success);margin-top:' + Math.round(vis.size * sz / 2 - 4) + 'px';
+    kDiv.textContent = vis.scalar;
+    topRow.appendChild(kDiv);
+    area.appendChild(topRow);
+  }
+
+  else if (vis.type === 'dotproduct') {
+    // Show row vector (horizontal) and column vector (vertical)
+    var dpDiv = document.createElement('div');
+    dpDiv.style.cssText = center;
+    var rowLabel = document.createElement('div');
+    rowLabel.style.cssText = 'font-size:12px;font-weight:700;color:var(--accent);margin-bottom:4px';
+    rowLabel.textContent = 'Row:';
+    dpDiv.appendChild(rowLabel);
+    var rowGrid = makeBoard(1, vis.row.length, sz, dpDiv);
+    for (var i = 0; i < vis.row.length; i++) {
+      getCell(rowGrid, 0, i).innerHTML = '<span style="font-weight:800;color:var(--text)">' + vis.row[i] + '</span>';
+    }
+    var colLabel = document.createElement('div');
+    colLabel.style.cssText = 'font-size:12px;font-weight:700;color:var(--accent);margin-top:8px;margin-bottom:4px';
+    colLabel.textContent = 'Column:';
+    dpDiv.appendChild(colLabel);
+    var colGrid = makeBoard(vis.col.length, 1, sz, dpDiv);
+    for (var i = 0; i < vis.col.length; i++) {
+      getCell(colGrid, i, 0).innerHTML = '<span style="font-weight:800;color:var(--text)">' + vis.col[i] + '</span>';
+    }
+    area.appendChild(dpDiv);
+  }
+
+  else if (vis.type === 'determinant') {
+    // Show 2x2 matrix
+    var detDiv = document.createElement('div');
+    detDiv.style.cssText = center;
+    var label = document.createElement('div');
+    label.style.cssText = 'font-size:14px;font-weight:800;color:var(--accent);margin-bottom:6px';
+    label.textContent = '2\u00d72 Matrix';
+    detDiv.appendChild(label);
+    var mat = [[vis.a, vis.b], [vis.c, vis.d]];
+    var grid = makeBoard(2, 2, sz + 8, detDiv);
+    fillBoardNumbers(grid, mat, 2, 2);
+    area.appendChild(detDiv);
+  }
 }
 
 /** Generate 5 random challenge questions — at most 1 per level, from levels 1-6 only. */
 function generateChallengeQuestions() {
   var questions = [];
-
   // Pick 5 random levels out of the 6 learning levels (0-5), at most 1 per level
   var levelPool = [0, 1, 2, 3, 4, 5];
   shuffle(levelPool);
   var selectedLevels = levelPool.slice(0, CHALLENGE_QUESTIONS);
-
-  // Generate one question per selected level
   for (var i = 0; i < selectedLevels.length; i++) {
     questions.push(generateChallengeQuestion(selectedLevels[i]));
   }
-
-  // Shuffle the questions
   return shuffle(questions);
 }
 
@@ -2077,21 +2205,21 @@ function initL8() {
   d.timeLeft = CHALLENGE_TIME;
   d.timerInterval = null;
   d.finished = false;
-  d.results = []; // 'correct' or 'wrong' per question
+  d.results = [];
 }
 
 function renderL8() {
   var d = S.levelData;
   document.getElementById('levelBadge').textContent = '7';
   document.getElementById('levelTitle').textContent = LEVELS[6].title;
-  document.getElementById('levelDesc').textContent = 'Test your overall understanding! Answer 5 random questions from Levels 1-6 within 2 minutes. Each question comes from a different level. Each correct answer earns 10 points. After 3 wrong answers, each mistake costs 5 points.';
+  document.getElementById('levelDesc').textContent = 'Test your overall understanding! Answer 5 random questions from Levels 1\u20136 within 2 minutes. Each question comes from a different level. Each correct answer earns 10 points. After 3 wrong answers, each mistake costs 5 points.';
   document.getElementById('learnBox').style.display = 'block';
   document.getElementById('learnContent').innerHTML =
     '<div style="color:var(--text);font-weight:700;margin-bottom:4px">Challenge Rules:</div>' +
     '<i class="fa-solid fa-clock" style="color:var(--accent);font-size:10px"></i> <b style="color:var(--text)">2 minutes</b> to answer 5 questions<br>' +
     '<i class="fa-solid fa-check" style="color:var(--success);font-size:10px"></i> <b style="color:var(--text)">+10 pts</b> per correct answer<br>' +
     '<i class="fa-solid fa-xmark" style="color:var(--accent2);font-size:10px"></i> <b style="color:var(--text)">-5 pts</b> per wrong answer after 3 misses<br>' +
-    '<i class="fa-solid fa-shuffle" style="color:var(--accent);font-size:10px"></i> 1 question per level from <b style="color:var(--text)">Levels 1-6</b>';
+    '<i class="fa-solid fa-shuffle" style="color:var(--accent);font-size:10px"></i> 1 question per level from <b style="color:var(--text)">Levels 1\u20136</b>';
 
   renderChallengeQuestion();
   startChallengeTimer();
@@ -2129,13 +2257,11 @@ function renderChallengeQuestion() {
   }
   area.appendChild(progressDiv);
 
-  // Level source label — questions only from levels 1-6 (levelType 0-5)
-  var levelIconIndex = q.levelType;
+  // Level source label
   var levelNames = ['Coordinates', 'Dimensions', 'Addition', 'Scalar', 'Multiplication', 'Determinant'];
-  var displayLevel = q.levelType + 1;
   var label = document.createElement('div');
   label.className = 'challenge-question-label';
-  label.innerHTML = '<i class="fa-solid ' + LEVELS[levelIconIndex].icon + '"></i> Level ' + displayLevel + ': ' + levelNames[q.levelType];
+  label.innerHTML = '<i class="fa-solid ' + LEVELS[q.levelType].icon + '"></i> Level ' + (q.levelType + 1) + ': ' + levelNames[q.levelType];
   area.appendChild(label);
 
   // Question number
@@ -2144,9 +2270,12 @@ function renderChallengeQuestion() {
   qNum.textContent = 'Question ' + (d.qIdx + 1) + ' of ' + d.questions.length;
   area.appendChild(qNum);
 
+  // Visual grid
+  renderChallengeVisual(area, q);
+
   // Task text
   var taskDiv = document.createElement('div');
-  taskDiv.style.cssText = 'font-size:16px;font-weight:600;text-align:center;margin-bottom:20px;line-height:1.6';
+  taskDiv.style.cssText = 'font-size:15px;font-weight:600;text-align:center;margin-bottom:16px;line-height:1.6';
   taskDiv.innerHTML = q.taskHtml;
   area.appendChild(taskDiv);
 
@@ -2155,7 +2284,6 @@ function renderChallengeQuestion() {
   optionsDiv.className = 'options-grid';
   optionsDiv.style.cssText = 'max-width:320px;margin:0 auto';
   d.optionsDiv = optionsDiv;
-
   for (var i = 0; i < q.options.length; i++) {
     var btn = document.createElement('button');
     btn.className = 'option-btn';
@@ -2195,7 +2323,6 @@ function handleChallengeAnswer(value, btn) {
     handleWrongAnswer();
     d.wrong++;
     d.results.push('wrong');
-    // Highlight correct answer
     for (var i = 0; i < allBtns.length; i++) {
       if (String(allBtns[i].textContent) === String(q.correct)) {
         allBtns[i].classList.add('correct');
@@ -2203,7 +2330,6 @@ function handleChallengeAnswer(value, btn) {
     }
   }
 
-  // Move to next question after delay
   d.qIdx++;
   setTimeout(function () {
     if (d.qIdx >= d.questions.length) {
@@ -2228,7 +2354,6 @@ function startChallengeTimer() {
     var timerEl = document.getElementById('timerValue');
     if (timerEl) {
       timerEl.textContent = formatTime(d.timeLeft);
-      // Visual warnings
       timerEl.classList.remove('timer-warning', 'timer-critical');
       if (d.timeLeft <= 15) timerEl.classList.add('timer-critical');
       else if (d.timeLeft <= 30) timerEl.classList.add('timer-warning');
@@ -2237,7 +2362,6 @@ function startChallengeTimer() {
     if (d.timeLeft <= 0) {
       clearInterval(d.timerInterval);
       d.finished = true;
-      // Mark remaining questions as wrong
       while (d.results.length < d.questions.length) {
         d.results.push('wrong');
         d.wrong++;
@@ -2262,10 +2386,8 @@ function finishChallenge() {
   var area = document.getElementById('boardArea');
   area.innerHTML = '';
 
-  // Update task
   document.getElementById('taskText').innerHTML = '<span style="color:var(--success);font-weight:700">Challenge Complete!</span>';
 
-  // Results card
   var resultsDiv = document.createElement('div');
   resultsDiv.className = 'challenge-results';
 
@@ -2287,7 +2409,6 @@ function finishChallenge() {
   SoundSystem.playCelebration();
   completeLevel();
 
-  // Wire retry button
   setTimeout(function () {
     var retryBtn = document.getElementById('challengeRetryBtn');
     if (retryBtn) {
