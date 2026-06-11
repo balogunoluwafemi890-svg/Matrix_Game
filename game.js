@@ -1,7 +1,7 @@
 /* ================================================================
    logic.js
    Utility functions, state management, localStorage, navigation,
-   board helpers, and all seven levels.
+   board helpers, and all eight levels.
    ================================================================ */
 
 /* ----------------------------------------------------------------
@@ -228,8 +228,8 @@ var LEVELS = [
   { title: 'Scalar Multiplication', icon: 'fa-xmark' },
   { title: 'Matrix Multiplication', icon: 'fa-layer-group' },
   { title: 'Determinant',           icon: 'fa-divide' },
-  { title: 'Checker Battle',        icon: 'fa-chess' },
-  { title: 'Challenge Mode',        icon: 'fa-bolt' }
+  { title: 'Challenge Mode',        icon: 'fa-bolt' },
+  { title: 'Checker Battle',        icon: 'fa-chess' }
 ];
 
 var isMobile = window.innerWidth < 768;
@@ -554,7 +554,7 @@ function completeLevel() {
 
 function goToLevel(n) {
   if (n < 0 || n >= LEVELS.length) return;
-  // Stop challenge timer if leaving Level 8
+  // Stop challenge timer if leaving Challenge Mode
   if (S.levelData && S.levelData.timerInterval) {
     clearInterval(S.levelData.timerInterval);
     S.levelData.timerInterval = null;
@@ -574,8 +574,8 @@ function goToLevel(n) {
   updateSoundBtnIcon();
 }
 
-function initLevel(n)  { [initL1,initL2,initL3,initL4,initL5,initL6,initL7,initL8][n](); }
-function renderLevel(n) { [renderL1,renderL2,renderL3,renderL4,renderL5,renderL6,renderL7,renderL8][n](); }
+function initLevel(n)  { [initL1,initL2,initL3,initL4,initL5,initL6,initL8,initL7][n](); }
+function renderLevel(n) { [renderL1,renderL2,renderL3,renderL4,renderL5,renderL6,renderL8,renderL7][n](); }
 
 
 /* ----------------------------------------------------------------
@@ -1314,7 +1314,7 @@ function updateStats6() {
 
 
 /* ================================================================
-   LEVEL 7: CHECKER BATTLE
+   LEVEL 8: CHECKER BATTLE
    ================================================================
    Capturing = matrix addition (your value += their value)
    Gold squares = scalar multiplication (value × 2 on landing)
@@ -1338,8 +1338,8 @@ function initL7() {
 
 function renderL7() {
   var d = S.levelData;
-  document.getElementById('levelBadge').textContent = '7';
-  document.getElementById('levelTitle').textContent = LEVELS[6].title;
+  document.getElementById('levelBadge').textContent = '8';
+  document.getElementById('levelTitle').textContent = LEVELS[7].title;
   document.getElementById('levelDesc').textContent = 'A real checkers battle where capturing adds values (matrix addition) and gold squares multiply (scalar multiplication). Capture all red pieces or outscore them!';
   document.getElementById('learnBox').style.display = 'block';
   document.getElementById('learnContent').innerHTML =
@@ -1961,13 +1961,13 @@ function displayLeaderboard(lb, user, tbody, emptyMsg, tableWrap) {
 
 
 /* ================================================================
-   LEVEL 8: CHALLENGE MODE — 10 random questions, 5-min timer
+   LEVEL 7: CHALLENGE MODE — 5 random questions, 2-min timer
    ================================================================ */
 
-var CHALLENGE_TIME = 300; // 5 minutes in seconds
-var CHALLENGE_QUESTIONS = 10;
+var CHALLENGE_TIME = 120; // 2 minutes in seconds
+var CHALLENGE_QUESTIONS = 5;
 
-/** Generate a random question object for a given level type (0-6). */
+/** Generate a random question object for a given level type (0-5 only). */
 function generateChallengeQuestion(levelType) {
   var q = { levelType: levelType, correct: null, options: [], html: '', taskHtml: '' };
 
@@ -2045,31 +2045,23 @@ function generateChallengeQuestion(levelType) {
     q.options = generateSignedOptions(det, 6);
   }
 
-  else if (levelType === 6) {
-    // L7: Checker Battle — capture scenario
-    var yourVal = rand(2, 5), enemyVal = rand(1, 4);
-    var newVal = yourVal + enemyVal;
-    q.correct = newVal;
-    q.taskHtml = 'Your piece (value <b style="color:var(--piece-teal)">' + yourVal + '</b>) captures an enemy (value <b style="color:var(--piece-red)">' + enemyVal + '</b>). What is your new value?';
-    q.options = generateOptions(newVal, 4);
-  }
+
 
   return q;
 }
 
-/** Generate 10 random challenge questions — at least 1 from each level. */
+/** Generate 5 random challenge questions — at most 1 per level, from levels 1-6 only. */
 function generateChallengeQuestions() {
   var questions = [];
 
-  // Guarantee one question from each of the 7 levels
-  for (var lvl = 0; lvl < 7; lvl++) {
-    questions.push(generateChallengeQuestion(lvl));
-  }
+  // Pick 5 random levels out of the 6 learning levels (0-5), at most 1 per level
+  var levelPool = [0, 1, 2, 3, 4, 5];
+  shuffle(levelPool);
+  var selectedLevels = levelPool.slice(0, CHALLENGE_QUESTIONS);
 
-  // Fill remaining 3 with random level types
-  while (questions.length < CHALLENGE_QUESTIONS) {
-    var lvl = rand(0, 6);
-    questions.push(generateChallengeQuestion(lvl));
+  // Generate one question per selected level
+  for (var i = 0; i < selectedLevels.length; i++) {
+    questions.push(generateChallengeQuestion(selectedLevels[i]));
   }
 
   // Shuffle the questions
@@ -2090,16 +2082,16 @@ function initL8() {
 
 function renderL8() {
   var d = S.levelData;
-  document.getElementById('levelBadge').textContent = '8';
-  document.getElementById('levelTitle').textContent = LEVELS[7].title;
-  document.getElementById('levelDesc').textContent = 'Test your overall understanding! Answer 10 random questions from all levels within 5 minutes. Each correct answer earns 10 points. After 3 wrong answers, each mistake costs 5 points.';
+  document.getElementById('levelBadge').textContent = '7';
+  document.getElementById('levelTitle').textContent = LEVELS[6].title;
+  document.getElementById('levelDesc').textContent = 'Test your overall understanding! Answer 5 random questions from Levels 1-6 within 2 minutes. Each question comes from a different level. Each correct answer earns 10 points. After 3 wrong answers, each mistake costs 5 points.';
   document.getElementById('learnBox').style.display = 'block';
   document.getElementById('learnContent').innerHTML =
     '<div style="color:var(--text);font-weight:700;margin-bottom:4px">Challenge Rules:</div>' +
-    '<i class="fa-solid fa-clock" style="color:var(--accent);font-size:10px"></i> <b style="color:var(--text)">5 minutes</b> to answer 10 questions<br>' +
+    '<i class="fa-solid fa-clock" style="color:var(--accent);font-size:10px"></i> <b style="color:var(--text)">2 minutes</b> to answer 5 questions<br>' +
     '<i class="fa-solid fa-check" style="color:var(--success);font-size:10px"></i> <b style="color:var(--text)">+10 pts</b> per correct answer<br>' +
     '<i class="fa-solid fa-xmark" style="color:var(--accent2);font-size:10px"></i> <b style="color:var(--text)">-5 pts</b> per wrong answer after 3 misses<br>' +
-    '<i class="fa-solid fa-shuffle" style="color:var(--accent);font-size:10px"></i> Questions from <b style="color:var(--text)">all 7 levels</b>';
+    '<i class="fa-solid fa-shuffle" style="color:var(--accent);font-size:10px"></i> 1 question per level from <b style="color:var(--text)">Levels 1-6</b>';
 
   renderChallengeQuestion();
   startChallengeTimer();
@@ -2137,11 +2129,13 @@ function renderChallengeQuestion() {
   }
   area.appendChild(progressDiv);
 
-  // Level source label
-  var levelNames = ['Coordinates', 'Dimensions', 'Addition', 'Scalar', 'Multiplication', 'Determinant', 'Battle'];
+  // Level source label — questions only from levels 1-6 (levelType 0-5)
+  var levelIconIndex = q.levelType;
+  var levelNames = ['Coordinates', 'Dimensions', 'Addition', 'Scalar', 'Multiplication', 'Determinant'];
+  var displayLevel = q.levelType + 1;
   var label = document.createElement('div');
   label.className = 'challenge-question-label';
-  label.innerHTML = '<i class="fa-solid ' + LEVELS[q.levelType].icon + '"></i> Level ' + (q.levelType + 1) + ': ' + levelNames[q.levelType];
+  label.innerHTML = '<i class="fa-solid ' + LEVELS[levelIconIndex].icon + '"></i> Level ' + displayLevel + ': ' + levelNames[q.levelType];
   area.appendChild(label);
 
   // Question number
@@ -2236,8 +2230,8 @@ function startChallengeTimer() {
       timerEl.textContent = formatTime(d.timeLeft);
       // Visual warnings
       timerEl.classList.remove('timer-warning', 'timer-critical');
-      if (d.timeLeft <= 30) timerEl.classList.add('timer-critical');
-      else if (d.timeLeft <= 60) timerEl.classList.add('timer-warning');
+      if (d.timeLeft <= 15) timerEl.classList.add('timer-critical');
+      else if (d.timeLeft <= 30) timerEl.classList.add('timer-warning');
     }
 
     if (d.timeLeft <= 0) {
