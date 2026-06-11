@@ -228,12 +228,11 @@ var LEVELS = [
   { title: 'Scalar Multiplication', icon: 'fa-xmark' },
   { title: 'Matrix Multiplication', icon: 'fa-layer-group' },
   { title: 'Determinant',           icon: 'fa-divide' },
-  { title: 'Challenge Mode',        icon: 'fa-bolt' },
   { title: 'Checker Battle',        icon: 'fa-chess' }
 ];
 
 var isMobile = window.innerWidth < 768;
-var ORDINALS = ['1st', '2nd', '3rd', '4th', '5th', '6th', '7th', '8th'];
+var ORDINALS = ['1st', '2nd', '3rd', '4th', '5th', '6th', '7th'];
 
 
 /* ----------------------------------------------------------------
@@ -554,11 +553,6 @@ function completeLevel() {
 
 function goToLevel(n) {
   if (n < 0 || n >= LEVELS.length) return;
-  // Stop challenge timer if leaving Challenge Mode
-  if (S.levelData && S.levelData.timerInterval) {
-    clearInterval(S.levelData.timerInterval);
-    S.levelData.timerInterval = null;
-  }
   S.currentLevel = n;
   S.levelData = {};
   S.wrongAttempts = 0; // Reset penalty counter for new level
@@ -574,8 +568,8 @@ function goToLevel(n) {
   updateSoundBtnIcon();
 }
 
-function initLevel(n)  { [initL1,initL2,initL3,initL4,initL5,initL6,initL8,initL7][n](); }
-function renderLevel(n) { [renderL1,renderL2,renderL3,renderL4,renderL5,renderL6,renderL8,renderL7][n](); }
+function initLevel(n)  { [initL1,initL2,initL3,initL4,initL5,initL6,initL7][n](); }
+function renderLevel(n) { [renderL1,renderL2,renderL3,renderL4,renderL5,renderL6,renderL7][n](); }
 
 
 /* ----------------------------------------------------------------
@@ -1314,7 +1308,7 @@ function updateStats6() {
 
 
 /* ================================================================
-   LEVEL 8: CHECKER BATTLE
+   LEVEL 7: CHECKER BATTLE
    ================================================================
    Capturing = matrix addition (your value += their value)
    Gold squares = scalar multiplication (value × 2 on landing)
@@ -1338,8 +1332,8 @@ function initL7() {
 
 function renderL7() {
   var d = S.levelData;
-  document.getElementById('levelBadge').textContent = '8';
-  document.getElementById('levelTitle').textContent = LEVELS[7].title;
+  document.getElementById('levelBadge').textContent = '7';
+  document.getElementById('levelTitle').textContent = LEVELS[6].title;
   document.getElementById('levelDesc').textContent = 'A real checkers battle where capturing adds values (matrix addition) and gold squares multiply (scalar multiplication). Capture all red pieces or outscore them!';
   document.getElementById('learnBox').style.display = 'block';
   document.getElementById('learnContent').innerHTML =
@@ -1952,472 +1946,11 @@ function displayLeaderboard(lb, user, tbody, emptyMsg, tableWrap) {
     // Levels cell
     var levelsTd = document.createElement('td');
     levelsTd.className = 'lb-levels';
-    levelsTd.textContent = entry.levelsCompleted + '/8';
+    levelsTd.textContent = entry.levelsCompleted + '/7';
     tr.appendChild(levelsTd);
 
     tbody.appendChild(tr);
   }
-}
-
-
-/* ================================================================
-   LEVEL 7: CHALLENGE MODE — 5 random questions, 2-min timer
-   ================================================================ */
-
-var CHALLENGE_TIME = 120; // 2 minutes in seconds
-var CHALLENGE_QUESTIONS = 5;
-var CHALLENGE_CELL = isMobile ? 38 : 44; // compact cell size for challenge visuals
-
-/** Generate a random question with visual data for a given level type (0-5). */
-function generateChallengeQuestion(levelType) {
-  var q = { levelType: levelType, correct: null, options: [], taskHtml: '', visualData: null };
-
-  if (levelType === 0) {
-    // L1: Grid Coordinates — show a 4x4 board, ask for coordinates of a highlighted piece
-    var r = rand(0, 3), c = rand(0, 3);
-    if ((r + c) % 2 === 0) c = (c + 1) % 4; // ensure piece on dark square
-    q.correct = '(' + r + ', ' + c + ')';
-    q.taskHtml = 'What are the coordinates (row, col) of the <b style="color:var(--success)">green piece</b>?';
-    q.visualData = { type: 'coordinates', targetR: r, targetC: c };
-    var opts = [q.correct];
-    var tries = 0;
-    while (opts.length < 4 && tries < 60) {
-      tries++;
-      var nr = rand(0, 3), nc = rand(0, 3);
-      if ((nr + nc) % 2 === 0) continue;
-      var key = '(' + nr + ', ' + nc + ')';
-      if (opts.indexOf(key) === -1) opts.push(key);
-    }
-    q.options = shuffle(opts);
-  }
-
-  else if (levelType === 1) {
-    // L2: Matrix Dimensions — show a matrix, ask for its dimensions
-    var rows = rand(2, 5), cols = rand(2, 5);
-    var mat = genMat(rows, cols, 1, 9);
-    q.correct = rows + ' \u00d7 ' + cols;
-    q.taskHtml = 'What are the dimensions of this matrix?';
-    q.visualData = { type: 'dimensions', rows: rows, cols: cols, matrix: mat };
-    var opts = [q.correct];
-    var tries = 0;
-    while (opts.length < 4 && tries < 60) {
-      tries++;
-      var fr = rand(2, 5), fc = rand(2, 5);
-      var key = fr + ' \u00d7 ' + fc;
-      if (opts.indexOf(key) === -1) opts.push(key);
-    }
-    q.options = shuffle(opts);
-  }
-
-  else if (levelType === 2) {
-    // L3: Matrix Addition — show two matrices A + B, ask for a specific cell sum
-    var size = rand(2, 3);
-    var A = genMat(size, size, 1, 5);
-    var B = genMat(size, size, 1, 5);
-    var tr = rand(0, size - 1), tc = rand(0, size - 1);
-    var sum = A[tr][tc] + B[tr][tc];
-    q.correct = sum;
-    q.taskHtml = 'In the addition below, what is the value at <b style="color:var(--accent)">row ' + tr + ', col ' + tc + '</b> (highlighted cells)?';
-    q.visualData = { type: 'addition', A: A, B: B, size: size, targetR: tr, targetC: tc };
-    q.options = generateOptions(sum, 4);
-  }
-
-  else if (levelType === 3) {
-    // L4: Scalar Multiplication — show matrix x scalar, ask for a specific cell product
-    var size = rand(2, 3);
-    var k = rand(2, 4);
-    var mat = genMat(size, size, 1, 5);
-    var tr = rand(0, size - 1), tc = rand(0, size - 1);
-    var product = k * mat[tr][tc];
-    q.correct = product;
-    q.taskHtml = 'Multiply the matrix by <b style="color:var(--accent)">' + k + '</b>. What is the value at <b style="color:var(--accent)">row ' + tr + ', col ' + tc + '</b> (highlighted cell)?';
-    q.visualData = { type: 'scalar', matrix: mat, scalar: k, size: size, targetR: tr, targetC: tc };
-    q.options = generateOptions(product, k * 2);
-  }
-
-  else if (levelType === 4) {
-    // L5: Matrix Multiplication — show row and column vectors, ask for dot product
-    var len = rand(2, 3);
-    var row = [], col = [];
-    for (var i = 0; i < len; i++) { row.push(rand(1, 5)); col.push(rand(1, 5)); }
-    var dot = 0;
-    for (var i = 0; i < len; i++) dot += row[i] * col[i];
-    q.correct = dot;
-    q.taskHtml = 'Compute the dot product of the row and column shown below:';
-    q.visualData = { type: 'dotproduct', row: row, col: col };
-    q.options = generateOptions(dot, 8);
-  }
-
-  else if (levelType === 5) {
-    // L6: Determinant — show a 2x2 matrix, ask for determinant
-    var a = rand(1, 6), b = rand(1, 6), c = rand(1, 6), d = rand(1, 6);
-    var det = a * d - b * c;
-    q.correct = det;
-    q.taskHtml = 'Find the determinant of the 2\u00d72 matrix below:';
-    q.visualData = { type: 'determinant', a: a, b: b, c: c, d: d };
-    q.options = generateSignedOptions(det, 6);
-  }
-
-  return q;
-}
-
-/** Render the visual grid for a challenge question into the board area. */
-function renderChallengeVisual(area, q) {
-  var sz = CHALLENGE_CELL;
-  var vis = q.visualData;
-  var center = 'text-align:center;margin-bottom:12px';
-
-  if (vis.type === 'coordinates') {
-    // 4x4 board with row/col labels and a green piece
-    var wrap = document.createElement('div');
-    wrap.style.cssText = 'display:inline-block;position:relative;' + center;
-    var grid = makeBoard(4, 4, sz, wrap);
-    for (var r = 0; r < 4; r++) {
-      var lbl = document.createElement('div');
-      lbl.style.cssText = 'position:absolute;left:-18px;top:' + (r * sz + sz / 2 - 7) + 'px;font-size:11px;font-weight:700;color:var(--accent)';
-      lbl.textContent = r; wrap.appendChild(lbl);
-    }
-    for (var c = 0; c < 4; c++) {
-      var lbl = document.createElement('div');
-      lbl.style.cssText = 'position:absolute;top:-16px;left:' + (c * sz + sz / 2 - 4) + 'px;font-size:11px;font-weight:700;color:var(--accent)';
-      lbl.textContent = c; wrap.appendChild(lbl);
-    }
-    var pieceCell = getCell(grid, vis.targetR, vis.targetC);
-    pieceCell.innerHTML = '<div style="width:' + Math.round(sz * 0.55) + 'px;height:' + Math.round(sz * 0.55) + 'px;border-radius:50%;background:linear-gradient(135deg,#22c55e,#16a34a);box-shadow:0 0 8px rgba(34,197,94,0.5);margin:auto"></div>';
-    pieceCell.classList.add('cell-highlight');
-    area.appendChild(wrap);
-  }
-
-  else if (vis.type === 'dimensions') {
-    // Show the matrix filled with numbers
-    var wrap = document.createElement('div');
-    wrap.style.cssText = center;
-    var label = document.createElement('div');
-    label.style.cssText = 'font-size:14px;font-weight:800;color:var(--accent);margin-bottom:6px';
-    label.textContent = 'Matrix M';
-    wrap.appendChild(label);
-    var grid = makeBoard(vis.rows, vis.cols, sz, wrap);
-    fillBoardNumbers(grid, vis.matrix, vis.rows, vis.cols);
-    area.appendChild(wrap);
-  }
-
-  else if (vis.type === 'addition') {
-    // Show A + B with highlighted target cells
-    var topRow = document.createElement('div');
-    topRow.style.cssText = 'display:flex;align-items:flex-start;gap:10px;justify-content:center;flex-wrap:wrap;margin-bottom:12px';
-    var aW = document.createElement('div'); aW.style.textAlign = 'center';
-    aW.innerHTML = '<div style="font-weight:800;color:var(--accent);margin-bottom:4px;font-size:13px">A</div>';
-    var boardA = makeBoard(vis.size, vis.size, sz, aW);
-    fillBoardNumbers(boardA, vis.A, vis.size, vis.size);
-    getCell(boardA, vis.targetR, vis.targetC).classList.add('cell-highlight');
-    topRow.appendChild(aW);
-    var plus = document.createElement('div');
-    plus.style.cssText = 'font-size:24px;font-weight:900;color:var(--accent);margin-top:' + Math.round(vis.size * sz / 2) + 'px';
-    plus.textContent = '+';
-    topRow.appendChild(plus);
-    var bW = document.createElement('div'); bW.style.textAlign = 'center';
-    bW.innerHTML = '<div style="font-weight:800;color:var(--accent);margin-bottom:4px;font-size:13px">B</div>';
-    var boardB = makeBoard(vis.size, vis.size, sz, bW);
-    fillBoardNumbers(boardB, vis.B, vis.size, vis.size);
-    getCell(boardB, vis.targetR, vis.targetC).classList.add('cell-highlight');
-    topRow.appendChild(bW);
-    area.appendChild(topRow);
-  }
-
-  else if (vis.type === 'scalar') {
-    // Show matrix x scalar with highlighted target cell
-    var topRow = document.createElement('div');
-    topRow.style.cssText = 'display:flex;align-items:flex-start;gap:10px;justify-content:center;flex-wrap:wrap;margin-bottom:12px';
-    var mW = document.createElement('div'); mW.style.textAlign = 'center';
-    mW.innerHTML = '<div style="font-weight:800;color:var(--accent);margin-bottom:4px;font-size:13px">Matrix</div>';
-    var board = makeBoard(vis.size, vis.size, sz, mW);
-    fillBoardNumbers(board, vis.matrix, vis.size, vis.size);
-    getCell(board, vis.targetR, vis.targetC).classList.add('cell-highlight');
-    topRow.appendChild(mW);
-    var times = document.createElement('div');
-    times.style.cssText = 'font-size:24px;font-weight:900;color:var(--accent);margin-top:' + Math.round(vis.size * sz / 2) + 'px';
-    times.textContent = '\u00d7';
-    topRow.appendChild(times);
-    var kDiv = document.createElement('div');
-    kDiv.style.cssText = 'font-size:28px;font-weight:900;color:var(--success);margin-top:' + Math.round(vis.size * sz / 2 - 4) + 'px';
-    kDiv.textContent = vis.scalar;
-    topRow.appendChild(kDiv);
-    area.appendChild(topRow);
-  }
-
-  else if (vis.type === 'dotproduct') {
-    // Show row vector (horizontal) and column vector (vertical)
-    var dpDiv = document.createElement('div');
-    dpDiv.style.cssText = center;
-    var rowLabel = document.createElement('div');
-    rowLabel.style.cssText = 'font-size:12px;font-weight:700;color:var(--accent);margin-bottom:4px';
-    rowLabel.textContent = 'Row:';
-    dpDiv.appendChild(rowLabel);
-    var rowGrid = makeBoard(1, vis.row.length, sz, dpDiv);
-    for (var i = 0; i < vis.row.length; i++) {
-      getCell(rowGrid, 0, i).innerHTML = '<span style="font-weight:800;color:var(--text)">' + vis.row[i] + '</span>';
-    }
-    var colLabel = document.createElement('div');
-    colLabel.style.cssText = 'font-size:12px;font-weight:700;color:var(--accent);margin-top:8px;margin-bottom:4px';
-    colLabel.textContent = 'Column:';
-    dpDiv.appendChild(colLabel);
-    var colGrid = makeBoard(vis.col.length, 1, sz, dpDiv);
-    for (var i = 0; i < vis.col.length; i++) {
-      getCell(colGrid, i, 0).innerHTML = '<span style="font-weight:800;color:var(--text)">' + vis.col[i] + '</span>';
-    }
-    area.appendChild(dpDiv);
-  }
-
-  else if (vis.type === 'determinant') {
-    // Show 2x2 matrix
-    var detDiv = document.createElement('div');
-    detDiv.style.cssText = center;
-    var label = document.createElement('div');
-    label.style.cssText = 'font-size:14px;font-weight:800;color:var(--accent);margin-bottom:6px';
-    label.textContent = '2\u00d72 Matrix';
-    detDiv.appendChild(label);
-    var mat = [[vis.a, vis.b], [vis.c, vis.d]];
-    var grid = makeBoard(2, 2, sz + 8, detDiv);
-    fillBoardNumbers(grid, mat, 2, 2);
-    area.appendChild(detDiv);
-  }
-}
-
-/** Generate 5 random challenge questions — at most 1 per level, from levels 1-6 only. */
-function generateChallengeQuestions() {
-  var questions = [];
-  // Pick 5 random levels out of the 6 learning levels (0-5), at most 1 per level
-  var levelPool = [0, 1, 2, 3, 4, 5];
-  shuffle(levelPool);
-  var selectedLevels = levelPool.slice(0, CHALLENGE_QUESTIONS);
-  for (var i = 0; i < selectedLevels.length; i++) {
-    questions.push(generateChallengeQuestion(selectedLevels[i]));
-  }
-  return shuffle(questions);
-}
-
-function initL8() {
-  var d = S.levelData;
-  d.questions = generateChallengeQuestions();
-  d.qIdx = 0;
-  d.correct = 0;
-  d.wrong = 0;
-  d.timeLeft = CHALLENGE_TIME;
-  d.timerInterval = null;
-  d.finished = false;
-  d.results = [];
-}
-
-function renderL8() {
-  var d = S.levelData;
-  document.getElementById('levelBadge').textContent = '7';
-  document.getElementById('levelTitle').textContent = LEVELS[6].title;
-  document.getElementById('levelDesc').textContent = 'Test your overall understanding! Answer 5 random questions from Levels 1\u20136 within 2 minutes. Each question comes from a different level. Each correct answer earns 10 points. After 3 wrong answers, each mistake costs 5 points.';
-  document.getElementById('learnBox').style.display = 'block';
-  document.getElementById('learnContent').innerHTML =
-    '<div style="color:var(--text);font-weight:700;margin-bottom:4px">Challenge Rules:</div>' +
-    '<i class="fa-solid fa-clock" style="color:var(--accent);font-size:10px"></i> <b style="color:var(--text)">2 minutes</b> to answer 5 questions<br>' +
-    '<i class="fa-solid fa-check" style="color:var(--success);font-size:10px"></i> <b style="color:var(--text)">+10 pts</b> per correct answer<br>' +
-    '<i class="fa-solid fa-xmark" style="color:var(--accent2);font-size:10px"></i> <b style="color:var(--text)">-5 pts</b> per wrong answer after 3 misses<br>' +
-    '<i class="fa-solid fa-shuffle" style="color:var(--accent);font-size:10px"></i> 1 question per level from <b style="color:var(--text)">Levels 1\u20136</b>';
-
-  renderChallengeQuestion();
-  startChallengeTimer();
-}
-
-function renderChallengeQuestion() {
-  var d = S.levelData;
-  var area = document.getElementById('boardArea');
-  area.innerHTML = '';
-
-  if (d.finished || d.qIdx >= d.questions.length) {
-    finishChallenge();
-    return;
-  }
-
-  var q = d.questions[d.qIdx];
-
-  // Timer
-  var timerDiv = document.createElement('div');
-  timerDiv.className = 'challenge-timer';
-  timerDiv.id = 'challengeTimer';
-  timerDiv.innerHTML = '<i class="fa-solid fa-clock"></i><span class="timer-value" id="timerValue">' + formatTime(d.timeLeft) + '</span><span style="color:var(--muted);font-size:13px">remaining</span>';
-  area.appendChild(timerDiv);
-
-  // Progress dots
-  var progressDiv = document.createElement('div');
-  progressDiv.className = 'challenge-progress';
-  for (var i = 0; i < d.questions.length; i++) {
-    var dot = document.createElement('div');
-    dot.className = 'challenge-dot';
-    if (d.results[i] === 'correct') dot.classList.add('done');
-    else if (d.results[i] === 'wrong') dot.classList.add('wrong-dot');
-    else if (i === d.qIdx) dot.classList.add('current');
-    progressDiv.appendChild(dot);
-  }
-  area.appendChild(progressDiv);
-
-  // Level source label
-  var levelNames = ['Coordinates', 'Dimensions', 'Addition', 'Scalar', 'Multiplication', 'Determinant'];
-  var label = document.createElement('div');
-  label.className = 'challenge-question-label';
-  label.innerHTML = '<i class="fa-solid ' + LEVELS[q.levelType].icon + '"></i> Level ' + (q.levelType + 1) + ': ' + levelNames[q.levelType];
-  area.appendChild(label);
-
-  // Question number
-  var qNum = document.createElement('div');
-  qNum.style.cssText = 'font-size:14px;font-weight:600;color:var(--muted);margin-bottom:8px;text-align:center';
-  qNum.textContent = 'Question ' + (d.qIdx + 1) + ' of ' + d.questions.length;
-  area.appendChild(qNum);
-
-  // Visual grid
-  renderChallengeVisual(area, q);
-
-  // Task text
-  var taskDiv = document.createElement('div');
-  taskDiv.style.cssText = 'font-size:15px;font-weight:600;text-align:center;margin-bottom:16px;line-height:1.6';
-  taskDiv.innerHTML = q.taskHtml;
-  area.appendChild(taskDiv);
-
-  // Options
-  var optionsDiv = document.createElement('div');
-  optionsDiv.className = 'options-grid';
-  optionsDiv.style.cssText = 'max-width:320px;margin:0 auto';
-  d.optionsDiv = optionsDiv;
-  for (var i = 0; i < q.options.length; i++) {
-    var btn = document.createElement('button');
-    btn.className = 'option-btn';
-    btn.textContent = q.options[i];
-    (function (val, b) {
-      b.addEventListener('click', function () {
-        SoundSystem.playTap();
-        handleChallengeAnswer(val, b);
-      });
-    })(q.options[i], btn);
-    optionsDiv.appendChild(btn);
-  }
-  area.appendChild(optionsDiv);
-}
-
-function handleChallengeAnswer(value, btn) {
-  var d = S.levelData;
-  if (d.finished) return;
-
-  var q = d.questions[d.qIdx];
-  var isCorrect = (String(value) === String(q.correct));
-
-  // Disable all options
-  var allBtns = d.optionsDiv.querySelectorAll('.option-btn');
-  for (var i = 0; i < allBtns.length; i++) allBtns[i].style.pointerEvents = 'none';
-
-  if (isCorrect) {
-    btn.classList.add('correct');
-    SoundSystem.playCorrect();
-    S.score += 10;
-    d.correct++;
-    d.results.push('correct');
-    updateHeader();
-  } else {
-    btn.classList.add('wrong');
-    SoundSystem.playWrong();
-    handleWrongAnswer();
-    d.wrong++;
-    d.results.push('wrong');
-    for (var i = 0; i < allBtns.length; i++) {
-      if (String(allBtns[i].textContent) === String(q.correct)) {
-        allBtns[i].classList.add('correct');
-      }
-    }
-  }
-
-  d.qIdx++;
-  setTimeout(function () {
-    if (d.qIdx >= d.questions.length) {
-      finishChallenge();
-    } else {
-      renderChallengeQuestion();
-    }
-  }, 800);
-}
-
-function startChallengeTimer() {
-  var d = S.levelData;
-  if (d.timerInterval) clearInterval(d.timerInterval);
-
-  d.timerInterval = setInterval(function () {
-    if (d.finished) {
-      clearInterval(d.timerInterval);
-      return;
-    }
-    d.timeLeft--;
-
-    var timerEl = document.getElementById('timerValue');
-    if (timerEl) {
-      timerEl.textContent = formatTime(d.timeLeft);
-      timerEl.classList.remove('timer-warning', 'timer-critical');
-      if (d.timeLeft <= 15) timerEl.classList.add('timer-critical');
-      else if (d.timeLeft <= 30) timerEl.classList.add('timer-warning');
-    }
-
-    if (d.timeLeft <= 0) {
-      clearInterval(d.timerInterval);
-      d.finished = true;
-      while (d.results.length < d.questions.length) {
-        d.results.push('wrong');
-        d.wrong++;
-      }
-      showToast('Time is up!', 'error');
-      finishChallenge();
-    }
-  }, 1000);
-}
-
-function formatTime(seconds) {
-  var m = Math.floor(seconds / 60);
-  var s = seconds % 60;
-  return m + ':' + (s < 10 ? '0' : '') + s;
-}
-
-function finishChallenge() {
-  var d = S.levelData;
-  d.finished = true;
-  if (d.timerInterval) clearInterval(d.timerInterval);
-
-  var area = document.getElementById('boardArea');
-  area.innerHTML = '';
-
-  document.getElementById('taskText').innerHTML = '<span style="color:var(--success);font-weight:700">Challenge Complete!</span>';
-
-  var resultsDiv = document.createElement('div');
-  resultsDiv.className = 'challenge-results';
-
-  var pct = Math.round((d.correct / d.questions.length) * 100);
-  var grade = pct >= 90 ? 'Excellent!' : pct >= 70 ? 'Good Job!' : pct >= 50 ? 'Keep Practicing!' : 'Try Again!';
-
-  resultsDiv.innerHTML =
-    '<div style="font-size:18px;font-weight:800;margin-bottom:4px">' + grade + '</div>' +
-    '<div class="results-score">' + d.correct + '/' + d.questions.length + '</div>' +
-    '<div class="results-label">questions answered correctly</div>' +
-    '<div class="results-detail" style="color:var(--success)"><i class="fa-solid fa-check" style="margin-right:6px"></i>' + d.correct + ' correct</div>' +
-    '<div class="results-detail" style="color:var(--accent2)"><i class="fa-solid fa-xmark" style="margin-right:6px"></i>' + d.wrong + ' wrong</div>' +
-    '<div class="results-detail" style="color:var(--accent)"><i class="fa-solid fa-percent" style="margin-right:6px"></i>' + pct + '% score</div>' +
-    '<div style="margin-top:16px"><button class="btn-primary btn-lg" id="challengeRetryBtn"><i class="fa-solid fa-rotate-right mr-2"></i>Try Again</button></div>';
-
-  area.appendChild(resultsDiv);
-
-  celebrate();
-  SoundSystem.playCelebration();
-  completeLevel();
-
-  setTimeout(function () {
-    var retryBtn = document.getElementById('challengeRetryBtn');
-    if (retryBtn) {
-      retryBtn.addEventListener('click', function () {
-        initL8();
-        renderL8();
-      });
-    }
-  }, 50);
 }
 
 
