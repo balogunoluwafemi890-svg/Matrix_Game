@@ -1,0 +1,76 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Leaderboard — Matrix Checkers</title>
+  <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@700;900&family=DM+Sans:ital,wght@0,300;0,400;0,500;0,700;1,400&display=swap" rel="stylesheet">
+  <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css" rel="stylesheet">
+  <link rel="stylesheet" href="styles.css">
+  <!-- Firebase SDKs -->
+  <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore-compat.js"></script>
+</head>
+<body>
+
+  <div class="bg-grid"></div>
+  <div class="glow-orb orb1"></div>
+  <div class="glow-orb orb2"></div>
+  <div class="toast-container" id="toasts"></div>
+
+  <div id="app">
+
+    <!-- LEADERBOARD SCREEN -->
+    <div id="leaderboardScreen" class="screen active">
+      <div class="leaderboard-screen">
+        <div class="leaderboard-card">
+          <div class="leaderboard-header">
+            <div class="leaderboard-title-row">
+              <button id="lbBackBtn" class="btn-ghost" style="padding:8px">
+                <i class="fa-solid fa-arrow-left"></i>
+              </button>
+              <h2 class="font-display text-3xl font-bold" style="color:var(--accent)">
+                <i class="fa-solid fa-trophy" style="margin-right:8px"></i>Leaderboard
+              </h2>
+              <div style="width:40px"></div>
+            </div>
+            <p class="leaderboard-subtitle">Top 20 players ranked by score</p>
+          </div>
+          <div class="leaderboard-table-wrap">
+            <table class="leaderboard-table" id="leaderboardTable">
+              <thead>
+                <tr>
+                  <th class="lb-rank">Rank</th>
+                  <th class="lb-player">Player</th>
+                  <th class="lb-score">Score</th>
+                  <th class="lb-levels">Levels</th>
+                </tr>
+              </thead>
+              <tbody id="leaderboardBody">
+              </tbody>
+            </table>
+          </div>
+          <div id="lbEmpty" class="lb-empty" style="display:none">
+            <i class="fa-solid fa-chart-simple" style="font-size:48px;color:var(--muted);margin-bottom:16px"></i>
+            <p style="color:var(--muted)">No scores yet. Be the first to play!</p>
+          </div>
+          <div class="leaderboard-footer">
+            <button id="lbPlayBtn" class="btn-primary btn-lg">
+              <i class="fa-solid fa-play mr-2"></i>Play Now
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+  </div>
+
+  <script src="util.js"></script>
+  <script src="firebase.js"></script>
+  <script src="sound.js"></script>
+  <script src="engine.js"></script>
+  <script src="auth.js"></script>
+  <script src="leaderboard.js"></script>
+  <script src="leaderboard-page.js"></script>
+</body>
+</html>

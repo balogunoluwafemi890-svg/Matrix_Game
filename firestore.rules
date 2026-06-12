@@ -1,0 +1,18 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // Leaderboard collection - anyone can read, only authenticated writes
+    match /leaderboard/{username} {
+      // Allow anyone to read the leaderboard
+      allow read: if true;
+
+      // Allow creating a new entry (no existing doc)
+      allow create: if true;
+
+      // Allow updating only if the new score is >= existing score
+      // This prevents users from lowering other players' scores
+      allow update: if request.resource.data.score >= resource.data.score
+                    && request.resource.data.username == resource.data.username;
+    }
+  }
+}

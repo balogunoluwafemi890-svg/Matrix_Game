@@ -1,0 +1,91 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Sign Up / Log In — Matrix Checkers</title>
+  <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@700;900&family=DM+Sans:ital,wght@0,300;0,400;0,500;0,700;1,400&display=swap" rel="stylesheet">
+  <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css" rel="stylesheet">
+  <link rel="stylesheet" href="styles.css">
+  <!-- Firebase SDKs -->
+  <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore-compat.js"></script>
+</head>
+<body>
+
+  <div class="bg-grid"></div>
+  <div class="glow-orb orb1"></div>
+  <div class="glow-orb orb2"></div>
+  <div class="toast-container" id="toasts"></div>
+
+  <div id="app">
+
+    <!-- AUTH SCREEN -->
+    <div id="authScreen" class="screen active">
+      <div class="auth-screen">
+        <div class="auth-card">
+          <div class="auth-header">
+            <span class="font-display text-2xl font-bold" style="color:var(--accent)">MC</span>
+          </div>
+          <h2 class="font-display text-3xl font-bold" id="authTitle">Sign Up</h2>
+          <p class="auth-subtitle" id="authSubtitle">Create an account to track your progress and compete on the leaderboard</p>
+
+          <div id="signupForm">
+            <div class="auth-field">
+              <label class="auth-label" for="signupUsername">Username</label>
+              <input type="text" id="signupUsername" class="auth-input" placeholder="Choose a username" maxlength="20" autocomplete="off">
+            </div>
+            <div class="auth-field">
+              <label class="auth-label" for="signupPassword">Password</label>
+              <input type="password" id="signupPassword" class="auth-input" placeholder="Create a password" maxlength="40">
+            </div>
+            <div class="auth-field">
+              <label class="auth-label" for="signupConfirm">Confirm Password</label>
+              <input type="password" id="signupConfirm" class="auth-input" placeholder="Confirm your password" maxlength="40">
+            </div>
+            <button id="signupBtn" class="btn-primary btn-lg auth-submit">
+              <i class="fa-solid fa-user-plus mr-2"></i>Create Account
+            </button>
+            <p class="auth-switch">Already have an account? <a href="#" id="showLogin">Log in</a></p>
+          </div>
+
+          <div id="loginForm" style="display:none">
+            <div class="auth-field">
+              <label class="auth-label" for="loginUsername">Username</label>
+              <input type="text" id="loginUsername" class="auth-input" placeholder="Enter your username" maxlength="20" autocomplete="off">
+            </div>
+            <div class="auth-field">
+              <label class="auth-label" for="loginPassword">Password</label>
+              <input type="password" id="loginPassword" class="auth-input" placeholder="Enter your password" maxlength="40">
+            </div>
+            <button id="loginBtn" class="btn-primary btn-lg auth-submit">
+              <i class="fa-solid fa-right-to-bracket mr-2"></i>Log In
+            </button>
+            <p class="auth-switch">Don't have an account? <a href="#" id="showSignup">Sign up</a></p>
+          </div>
+
+          <div class="auth-divider">
+            <span>or</span>
+          </div>
+          <button id="guestBtn" class="btn-ghost auth-guest">
+            <i class="fa-solid fa-user-secret mr-2"></i>Continue as Guest
+          </button>
+
+          <button id="authBackBtn" class="btn-ghost auth-back">
+            <i class="fa-solid fa-arrow-left mr-1"></i>Back
+          </button>
+        </div>
+      </div>
+    </div>
+
+  </div>
+
+  <script src="util.js"></script>
+  <script src="firebase.js"></script>
+  <script src="sound.js"></script>
+  <script src="engine.js"></script>
+  <script src="leaderboard.js"></script>
+  <script src="auth.js"></script>
+  <script src="auth-page.js"></script>
+</body>
+</html>
