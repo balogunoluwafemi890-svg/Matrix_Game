@@ -124,6 +124,19 @@ function updateLeaderboardForCurrentUser() {
   saveLeaderboardLocal(lb);
 }
 
+/** Sort an array of leaderboard entries by score desc, then levelsCompleted desc.
+ *  Used both for the localStorage fallback and to break ties within a single
+ *  Firestore orderBy('score') result, since Firestore itself only orders by score. */
+function sortLeaderboardEntries(lb) {
+  lb.sort(function (a, b) {
+    var scoreA = a.score || 0, scoreB = b.score || 0;
+    if (scoreB !== scoreA) return scoreB - scoreA;
+    var levelsA = a.levelsCompleted || 0, levelsB = b.levelsCompleted || 0;
+    return levelsB - levelsA;
+  });
+  return lb;
+}
+
 /** Render the leaderboard screen (fetches from Firestore, falls back to localStorage). */
 function renderLeaderboard() {
   var user = getCurrentUser();
@@ -138,19 +151,28 @@ function renderLeaderboard() {
   tableWrap.style.display = 'block';
   tbody.innerHTML = '<tr><td colspan="4" style="text-align:center;padding:24px;color:var(--muted)"><i class="fa-solid fa-spinner fa-spin" style="margin-right:8px"></i>Loading leaderboard...</td></tr>';
 
-  // Try Firestore first
+  // Try Firestore first.
+  // NOTE: we only orderBy a single field ('score') here on purpose — a
+  // second orderBy('levelsCompleted') would require a composite index to be
+  // manually created in the Firebase console, and if that index is ever
+  // missing the query fails silently and falls back to the local (per-device)
+  // cache, making the leaderboard look empty to everyone else. Instead we
+  // pull a slightly larger batch by score alone (which Firestore can always
+  // do with just the automatic single-field index) and break the
+  // score/levelsCompleted tie client-side in sortLeaderboardEntries().
   if (firebaseReady && db) {
     db.collection('leaderboard')
       .orderBy('score', 'desc')
-      .orderBy('levelsCompleted', 'desc')
-      .limit(20)
+      .limit(50)
       .get()
       .then(function(querySnapshot) {
         var lb = [];
         querySnapshot.forEach(function(doc) {
           lb.push(doc.data());
         });
-        displayLeaderboard(lb, user, tbody, emptyMsg, tableWrap);
+        sortLeaderboardEntries(lb);
+        var top20 = lb.slice(0, 20);
+        displayLeaderboard(top20, user, tbody, emptyMsg, tableWrap);
       })
       .catch(function(err) {
         console.error('Firestore fetch failed, using local cache:', err);
@@ -231,5 +253,3 @@ function displayLeaderboard(lb, user, tbody, emptyMsg, tableWrap) {
     tbody.appendChild(tr);
   }
 }
-
-
